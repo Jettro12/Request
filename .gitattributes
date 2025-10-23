@@ -1,0 +1,19 @@
+# Establecer el comportamiento de fin de línea
+* text=auto
+
+# Especificar que estos archivos son texto y deben ser normalizados
+*.tsx text
+*.ts text
+*.js text
+*.jsx text
+*.json text
+*.md text
+*.css text
+*.html text
+
+# Especificar que estos son binarios y no deben ser tocados
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
