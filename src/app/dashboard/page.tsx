@@ -2,6 +2,7 @@
 
 import Header from "@/components/Header";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 
 // Datos de ejemplo - luego vendrán de la base de datos
 const mockPosts = [
@@ -126,9 +127,10 @@ const postTypes = {
 };
 
 export default function Dashboard() {
+  const { data: session } = useSession();
   const [selectedCareer, setSelectedCareer] = useState("Todos los espacios");
   const [activeTab, setActiveTab] = useState("all");
-  const [view, setView] = useState("posts"); // 'posts' o 'people'
+  const [view, setView] = useState("posts");
 
   const filteredPosts = mockPosts.filter(
     (post) =>
@@ -147,12 +149,17 @@ export default function Dashboard() {
       <Header />
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 py-8">
-          {/* Header del Dashboard */}
+          {/* Header del Dashboard actualizado */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Hola, {session?.user?.name} 👋
+            </h1>
             <p className="text-gray-600">
               Descubre oportunidades y conecta con tu comunidad universitaria
             </p>
+            <div className="mt-2 text-sm text-gray-500">
+              {session?.user?.career} • {session?.user?.semester}° Semestre
+            </div>
           </div>
 
           <div className="grid lg:grid-cols-4 gap-8">

@@ -1,100 +1,179 @@
+// src/app/profile/page.tsx
+"use client";
+
 import Header from "@/components/Header";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 
-// Datos de ejemplo mejorados
-const mockUser = {
-  name: "Ana García",
-  email: "ana.garcia@universidad.edu",
-  career: "Ingeniería en Sistemas",
-  semester: 6,
-  bio: "Apasionada por el desarrollo web y la inteligencia artificial. También me encanta el arte digital y la fotografía. Busco colaborar en proyectos que combinen tecnología y creatividad.",
-  skills: ["React", "Python", "Machine Learning", "Node.js", "MongoDB"],
-  interests: [
-    "Arte Digital",
-    "Fotografía",
-    "Inteligencia Artificial",
-    "Diseño UX/UI",
-    "Realidad Virtual",
-  ],
-  rating: 4.8,
-  reviewCount: 12,
-  avatar: "/api/placeholder/150/150",
-  socialLinks: {
-    github: "https://github.com/anagarcia",
-    linkedin: "https://linkedin.com/in/anagarcia",
-    portfolio: "https://anagarcia.dev",
-    behance: "https://behance.net/anagarcia",
+// Interface para los datos del usuario
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  career: string;
+  semester: number;
+  bio: string;
+  skills: string[];
+  interests: string[];
+  rating: number;
+  reviewCount: number;
+  avatar?: string;
+  createdAt: string;
+}
+
+// Datos de ejemplo para proyectos (por ahora)
+const mockProjects = [
+  {
+    id: 1,
+    title: "Sistema de Detección de Emociones",
+    description:
+      "Programa que detecta emociones mediante análisis de texto usando Python y NLTK.",
+    status: "En progreso",
+    media: [
+      {
+        type: "image",
+        url: "/api/placeholder/400/300",
+        alt: "Interfaz del sistema",
+      },
+      {
+        type: "image",
+        url: "/api/placeholder/400/300",
+        alt: "Diagrama de arquitectura",
+      },
+    ],
+    links: {
+      github: "https://github.com/user/emotion-detection",
+      demo: "https://emotion-demo.vercel.app",
+    },
   },
-  projects: [
-    {
-      id: 1,
-      title: "Sistema de Detección de Emociones",
-      description:
-        "Programa que detecta emociones mediante análisis de texto usando Python y NLTK.",
-      status: "En progreso",
-      media: [
-        {
-          type: "image",
-          url: "/api/placeholder/400/300",
-          alt: "Interfaz del sistema",
-        },
-        {
-          type: "image",
-          url: "/api/placeholder/400/300",
-          alt: "Diagrama de arquitectura",
-        },
-      ],
-      links: {
-        github: "https://github.com/anagarcia/emotion-detection",
-        demo: "https://emotion-demo.vercel.app",
+  {
+    id: 2,
+    title: "Galería de Arte Digital con React",
+    description:
+      "Plataforma web para exhibir arte digital con filtros inteligentes y sistema de comentarios.",
+    status: "Completado",
+    media: [
+      {
+        type: "image",
+        url: "/api/placeholder/400/300",
+        alt: "Galería principal",
       },
-    },
-    {
-      id: 2,
-      title: "Galería de Arte Digital con React",
-      description:
-        "Plataforma web para exhibir arte digital con filtros inteligentes y sistema de comentarios.",
-      status: "Completado",
-      media: [
-        {
-          type: "image",
-          url: "/api/placeholder/400/300",
-          alt: "Galería principal",
-        },
-        {
-          type: "video",
-          url: "/api/placeholder/400/300",
-          alt: "Demo de la aplicación",
-        },
-      ],
-      links: {
-        github: "https://github.com/anagarcia/digital-gallery",
-        live: "https://digital-gallery.art",
+      {
+        type: "video",
+        url: "/api/placeholder/400/300",
+        alt: "Demo de la aplicación",
       },
+    ],
+    links: {
+      github: "https://github.com/user/digital-gallery",
+      live: "https://digital-gallery.art",
     },
-    {
-      id: 3,
-      title: "Performance: Tecnología y Danza",
-      description:
-        "Colaboración interdisciplinaria combinando sensores IoT con expresión corporal.",
-      status: "En planeación",
-      media: [
-        {
-          type: "video",
-          url: "/api/placeholder/400/300",
-          alt: "Ensayo performance",
-        },
-        {
-          type: "image",
-          url: "/api/placeholder/400/300",
-          alt: "Diagrama técnico",
-        },
-      ],
-    },
-  ],
-};
+  },
+];
 
 export default function Profile() {
+  const { data: session } = useSession();
+  const [userData, setUserData] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Cargar datos del usuario
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!session?.user) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/profile");
+        const result = await response.json();
+
+        if (response.ok && result.user) {
+          setUserData(result.user);
+        } else {
+          setError(result.error || "Error al cargar el perfil");
+        }
+      } catch (err) {
+        setError("Error de conexión");
+        console.error("Error cargando perfil:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [session]);
+
+  // Si está cargando
+  if (isLoading) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="text-gray-600 mt-4">Cargando tu perfil...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Si no hay sesión
+  if (!session) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900">
+              No has iniciado sesión
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Por favor inicia sesión para ver tu perfil
+            </p>
+            <Link
+              href="/login"
+              className="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Iniciar Sesión
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Si hay error
+  if (error) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-red-600">Error</h1>
+            <p className="text-gray-600 mt-2">{error}</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Usar datos reales o mostrar mensaje si no hay datos
+  const user = userData || {
+    name: session.user.name || "Usuario",
+    email: session.user.email || "",
+    career: session.user.career || "No especificado",
+    semester: session.user.semester || 1,
+    bio: "Completa tu biografía para que otros usuarios te conozcan mejor.",
+    skills: [],
+    interests: [],
+    rating: 0,
+    reviewCount: 0,
+  };
+
   return (
     <>
       <Header />
@@ -108,7 +187,7 @@ export default function Profile() {
                 <div className="relative">
                   <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
                     <span className="text-2xl font-bold text-blue-600">
-                      {mockUser.name.charAt(0)}
+                      {user.name.charAt(0)}
                     </span>
                   </div>
                   <button className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-1 rounded-full hover:bg-blue-700">
@@ -117,10 +196,10 @@ export default function Profile() {
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">
-                    {mockUser.name}
+                    {user.name}
                   </h1>
                   <p className="text-gray-600">
-                    {mockUser.career} - {mockUser.semester}° Semestre
+                    {user.career} - {user.semester}° Semestre
                   </p>
                   <div className="flex items-center space-x-2 mt-2">
                     <div className="flex items-center space-x-1">
@@ -131,7 +210,7 @@ export default function Profile() {
                           <span
                             key={i}
                             className={
-                              i < Math.floor(mockUser.rating)
+                              i < Math.floor(user.rating)
                                 ? "text-yellow-400"
                                 : "text-gray-300"
                             }
@@ -141,7 +220,7 @@ export default function Profile() {
                         ))}
                     </div>
                     <span className="text-gray-600">
-                      ({mockUser.reviewCount} evaluaciones)
+                      ({user.reviewCount} evaluaciones)
                     </span>
                   </div>
                 </div>
@@ -149,9 +228,12 @@ export default function Profile() {
 
               {/* Botones de Acción */}
               <div className="flex flex-wrap gap-3 ml-auto">
-                <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                <Link
+                  href="/profile/edit"
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium"
+                >
                   Editar Perfil
-                </button>
+                </Link>
                 <button className="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 font-medium">
                   Compartir Perfil
                 </button>
@@ -167,56 +249,18 @@ export default function Profile() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Sobre Mí
                 </h2>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  {mockUser.bio}
-                </p>
+                <p className="text-gray-700 leading-relaxed mb-4">{user.bio}</p>
 
-                {/* Enlaces Sociales */}
+                {/* Enlaces Sociales - Por implementar */}
                 <div className="flex flex-wrap gap-3">
-                  {mockUser.socialLinks.github && (
-                    <a
-                      href={mockUser.socialLinks.github}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                      <span>💻</span>
-                      <span className="font-medium">GitHub</span>
-                    </a>
-                  )}
-                  {mockUser.socialLinks.linkedin && (
-                    <a
-                      href={mockUser.socialLinks.linkedin}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 transition-colors"
-                    >
-                      <span>💼</span>
-                      <span className="font-medium">LinkedIn</span>
-                    </a>
-                  )}
-                  {mockUser.socialLinks.portfolio && (
-                    <a
-                      href={mockUser.socialLinks.portfolio}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 bg-purple-100 text-purple-700 px-3 py-2 rounded-lg hover:bg-purple-200 transition-colors"
-                    >
-                      <span>🌐</span>
-                      <span className="font-medium">Portafolio</span>
-                    </a>
-                  )}
-                  {mockUser.socialLinks.behance && (
-                    <a
-                      href={mockUser.socialLinks.behance}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 bg-green-100 text-green-700 px-3 py-2 rounded-lg hover:bg-green-200 transition-colors"
-                    >
-                      <span>🎨</span>
-                      <span className="font-medium">Behance</span>
-                    </a>
-                  )}
+                  <button className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors opacity-50 cursor-not-allowed">
+                    <span>💻</span>
+                    <span className="font-medium">Agregar GitHub</span>
+                  </button>
+                  <button className="flex items-center space-x-2 bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 transition-colors opacity-50 cursor-not-allowed">
+                    <span>💼</span>
+                    <span className="font-medium">Agregar LinkedIn</span>
+                  </button>
                 </div>
               </div>
 
@@ -226,14 +270,21 @@ export default function Profile() {
                   Habilidades Técnicas
                 </h2>
                 <div className="flex flex-wrap gap-3">
-                  {mockUser.skills.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium"
-                    >
-                      {skill}
-                    </span>
-                  ))}
+                  {user.skills.length > 0 ? (
+                    user.skills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium"
+                      >
+                        {skill}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      Aún no has agregado habilidades. Edita tu perfil para
+                      agregarlas.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -243,33 +294,40 @@ export default function Profile() {
                   Intereses y Pasiones
                 </h2>
                 <div className="flex flex-wrap gap-3">
-                  {mockUser.interests.map((interest, index) => (
-                    <span
-                      key={index}
-                      className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium"
-                    >
-                      {interest}
-                    </span>
-                  ))}
+                  {user.interests.length > 0 ? (
+                    user.interests.map((interest, index) => (
+                      <span
+                        key={index}
+                        className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium"
+                      >
+                        {interest}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      Aún no has agregado intereses. Edita tu perfil para
+                      agregarlos.
+                    </p>
+                  )}
                 </div>
                 <p className="text-gray-600 text-sm mt-3">
                   Estos intereses ayudan a conectar con personas de otras
-                  disciplinas y encontrar colaboraciones interdisciplinarias.
+                  disciplinas.
                 </p>
               </div>
 
-              {/* Proyectos Mejorados */}
+              {/* Proyectos - Por ahora con datos de ejemplo */}
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">
                     Mis Proyectos
                   </h2>
-                  <button className="text-blue-600 hover:text-blue-700 font-medium">
+                  <button className="text-blue-600 hover:text-blue-700 font-medium opacity-50 cursor-not-allowed">
                     + Nuevo Proyecto
                   </button>
                 </div>
                 <div className="space-y-6">
-                  {mockUser.projects.map((project) => (
+                  {mockProjects.map((project) => (
                     <div
                       key={project.id}
                       className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
@@ -296,76 +354,6 @@ export default function Profile() {
                         </span>
                       </div>
 
-                      {/* Media Gallery */}
-                      {project.media && project.media.length > 0 && (
-                        <div className="mb-3">
-                          <h4 className="text-sm font-medium text-gray-700 mb-2">
-                            Galería del proyecto:
-                          </h4>
-                          <div className="flex space-x-2 overflow-x-auto pb-2">
-                            {project.media.map((media, index) => (
-                              <div key={index} className="flex-shrink-0">
-                                <div className="w-32 h-24 bg-gray-200 rounded-lg flex items-center justify-center">
-                                  {media.type === "image" ? (
-                                    <span className="text-gray-500">
-                                      🖼️ Imagen
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-500">
-                                      🎥 Video
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-500 mt-1 text-center">
-                                  {media.alt}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Enlaces del Proyecto */}
-                      {project.links && (
-                        <div className="mb-3">
-                          <div className="flex space-x-3">
-                            {project.links.github && (
-                              <a
-                                href={project.links.github}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
-                              >
-                                <span>💻</span>
-                                <span>GitHub</span>
-                              </a>
-                            )}
-                            {project.links.demo && (
-                              <a
-                                href={project.links.demo}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center space-x-1"
-                              >
-                                <span>🚀</span>
-                                <span>Demo</span>
-                              </a>
-                            )}
-                            {project.links.live && (
-                              <a
-                                href={project.links.live}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center space-x-1"
-                              >
-                                <span>🌐</span>
-                                <span>Sitio Web</span>
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
                       <div className="flex space-x-3 pt-3 border-t border-gray-200">
                         <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                           Ver Detalles
@@ -390,23 +378,32 @@ export default function Profile() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Proyectos Completados</span>
-                    <span className="font-semibold">3</span>
+                    <span className="font-semibold">0</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Colaboraciones</span>
-                    <span className="font-semibold">8</span>
+                    <span className="font-semibold">0</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Requests Recibidos</span>
-                    <span className="font-semibold">15</span>
+                    <span className="font-semibold">0</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Intereses Compartidos</span>
-                    <span className="font-semibold">12</span>
+                    <span className="font-semibold">
+                      {user.interests.length}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Miembro desde</span>
-                    <span className="font-semibold">Ene 2024</span>
+                    <span className="font-semibold">
+                      {userData?.createdAt
+                        ? new Date(userData.createdAt).toLocaleDateString(
+                            "es-ES",
+                            { month: "short", year: "numeric" }
+                          )
+                        : "Recién"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -417,8 +414,8 @@ export default function Profile() {
                   ¿Interesado en colaborar?
                 </h2>
                 <p className="text-gray-600 text-sm mb-4">
-                  Envía una solicitud a {mockUser.name} para proponerle un
-                  proyecto o colaboración.
+                  Envía una solicitud a {user.name} para proponerle un proyecto
+                  o colaboración.
                 </p>
                 <button className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium">
                   📨 Enviar Request
@@ -431,13 +428,13 @@ export default function Profile() {
                   Contacto
                 </h2>
                 <div className="space-y-2 text-sm">
-                  <p className="text-gray-600">{mockUser.email}</p>
+                  <p className="text-gray-600">{user.email}</p>
                   <p className="text-blue-600 font-medium">
                     Disponible para colaboraciones
                   </p>
                   <p className="text-gray-500 text-xs">
-                    Especialmente interesada en proyectos que combinen
-                    tecnología y arte.
+                    Actualiza tu perfil para personalizar tu mensaje de
+                    disponibilidad.
                   </p>
                 </div>
               </div>
