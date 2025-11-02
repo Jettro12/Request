@@ -111,12 +111,13 @@ model Request {
 model Message {
   id        String   @id @default(cuid())
   content   String
-  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  requestId String
+  request   Request? @relation(fields: [requestId], references: [id], onDelete: Cascade) // ← Hacer opcional
+  requestId String?  // ← Hacer opcional
   sender    User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   senderId  String
   receiver  User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
   receiverId String
+  read      Boolean  @default(false) // ← Agregar este campo
   createdAt DateTime @default(now())
 
   @@map("messages")

@@ -84,7 +84,16 @@ export default function Header() {
               </nav>
             )}
           </div>
-
+          <Link
+            href="/requests"
+            className={`${
+              pathname === "/requests"
+                ? "text-blue-600 font-medium"
+                : "text-gray-600 hover:text-blue-600"
+            }`}
+          >
+            📨 Solicitudes
+          </Link>
           {/* Barra de Búsqueda */}
           {isLoggedIn && (
             <div className="flex-1 max-w-2xl mx-8 relative">
