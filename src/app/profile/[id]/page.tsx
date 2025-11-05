@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import RequestModal from "@/components/RequestModal"; // Asegúrate de importar el componente
+import RequestModal from "@/components/RequestModal";
 
 interface UserProfile {
   id: string;
@@ -29,7 +29,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showRequestModal, setShowRequestModal] = useState(false); // ← Agregar este estado
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   useEffect(() => {
     const loadUserProfile = async () => {
@@ -55,6 +55,26 @@ export default function ProfilePage() {
       loadUserProfile();
     }
   }, [userId]);
+
+  // Función para renderizar estrellas
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex items-center space-x-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <span
+            key={star}
+            className={`text-xl ${
+              star <= Math.round(rating || 0)
+                ? "text-yellow-400"
+                : "text-gray-300"
+            }`}
+          >
+            ★
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -117,12 +137,28 @@ export default function ProfilePage() {
                       <p className="text-gray-700 mt-3 max-w-2xl">{user.bio}</p>
                     )}
                   </div>
-                  <div className="flex items-center space-x-1 bg-yellow-100 px-3 py-1 rounded-full">
-                    <span className="text-yellow-600">★</span>
-                    <span className="text-sm font-medium text-yellow-800">
-                      {user.rating || "Nuevo"}
-                      {user.reviewCount > 0 && ` (${user.reviewCount})`}
-                    </span>
+
+                  {/* Rating Mejorado */}
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="flex items-center space-x-3">
+                      {renderStars(user.rating || 0)}
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-900">
+                          {user.rating ? user.rating.toFixed(1) : "Nuevo"}
+                        </div>
+                        {user.reviewCount > 0 && (
+                          <div className="text-sm text-gray-600">
+                            {user.reviewCount}{" "}
+                            {user.reviewCount === 1 ? "reseña" : "reseñas"}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {!user.rating && (
+                      <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        Sin calificaciones aún
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -181,11 +217,12 @@ export default function ProfilePage() {
 
             {/* Columna Derecha - Información */}
             <div className="space-y-6">
+              {/* Información del Usuario */}
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
                   Información
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600">Carrera</p>
                     <p className="font-medium text-gray-900">{user.career}</p>
@@ -196,15 +233,58 @@ export default function ProfilePage() {
                       {user.semester}° Semestre
                     </p>
                   </div>
+
+                  {/* Rating Detallado */}
                   <div>
-                    <p className="text-sm text-gray-600">Calificación</p>
-                    <p className="font-medium text-gray-900">
-                      {user.rating || "Nuevo"}
-                      {user.reviewCount > 0 && ` (${user.reviewCount} reseñas)`}
-                    </p>
+                    <p className="text-sm text-gray-600 mb-2">Calificación</p>
+                    <div className="flex items-center space-x-3">
+                      {renderStars(user.rating || 0)}
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {user.rating
+                            ? user.rating.toFixed(1) + " / 5.0"
+                            : "Sin calificaciones"}
+                        </p>
+                        {user.reviewCount > 0 && (
+                          <p className="text-sm text-gray-600">
+                            Basado en {user.reviewCount}{" "}
+                            {user.reviewCount === 1
+                              ? "colaboración"
+                              : "colaboraciones"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Stats de Rating */}
+              {user.rating && user.reviewCount > 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    Estadísticas
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {user.reviewCount}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Colaboraciones
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {user.rating.toFixed(1)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Rating Promedio
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Botones de Acción */}
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -220,7 +300,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Modal para enviar Request - Fuera del grid */}
+          {/* Modal para enviar Request */}
           {showRequestModal && user && (
             <RequestModal
               receiverId={user.id}

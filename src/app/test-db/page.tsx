@@ -1,5 +1,5 @@
 // src/app/test-db/page.tsx
-import { prisma } from "@/db";
+import { prisma } from "@/lib/db";
 
 export default async function TestDB() {
   try {

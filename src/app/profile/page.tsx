@@ -7,7 +7,6 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import RequestModal from "@/components/RequestModal";
 
-// Interface para los datos del usuario
 interface User {
   id: string;
   name: string;
@@ -23,62 +22,32 @@ interface User {
   createdAt: string;
 }
 
-// Datos de ejemplo para proyectos (por ahora)
-const mockProjects = [
-  {
-    id: 1,
-    title: "Sistema de Detección de Emociones",
-    description:
-      "Programa que detecta emociones mediante análisis de texto usando Python y NLTK.",
-    status: "En progreso",
-    media: [
-      {
-        type: "image",
-        url: "/api/placeholder/400/300",
-        alt: "Interfaz del sistema",
-      },
-      {
-        type: "image",
-        url: "/api/placeholder/400/300",
-        alt: "Diagrama de arquitectura",
-      },
-    ],
-    links: {
-      github: "https://github.com/user/emotion-detection",
-      demo: "https://emotion-demo.vercel.app",
-    },
-  },
-  {
-    id: 2,
-    title: "Galería de Arte Digital con React",
-    description:
-      "Plataforma web para exhibir arte digital con filtros inteligentes y sistema de comentarios.",
-    status: "Completado",
-    media: [
-      {
-        type: "image",
-        url: "/api/placeholder/400/300",
-        alt: "Galería principal",
-      },
-      {
-        type: "video",
-        url: "/api/placeholder/400/300",
-        alt: "Demo de la aplicación",
-      },
-    ],
-    links: {
-      github: "https://github.com/user/digital-gallery",
-      live: "https://digital-gallery.art",
-    },
-  },
-];
-
 export default function Profile() {
   const { data: session } = useSession();
   const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [showRequestModal, setShowRequestModal] = useState(false);
+
+  // Función para renderizar estrellas
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex items-center space-x-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <span
+            key={star}
+            className={`text-lg ${
+              star <= Math.round(rating || 0)
+                ? "text-yellow-400"
+                : "text-gray-300"
+            }`}
+          >
+            ★
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   // Cargar datos del usuario
   useEffect(() => {
@@ -119,7 +88,7 @@ export default function Profile() {
     }
     setShowRequestModal(true);
   };
-  // Si está cargando
+
   if (isLoading) {
     return (
       <>
@@ -134,7 +103,6 @@ export default function Profile() {
     );
   }
 
-  // Si no hay sesión
   if (!session) {
     return (
       <>
@@ -159,7 +127,6 @@ export default function Profile() {
     );
   }
 
-  // Si hay error
   if (error) {
     return (
       <>
@@ -174,7 +141,6 @@ export default function Profile() {
     );
   }
 
-  // Usar datos reales o mostrar mensaje si no hay datos
   const user = userData || {
     name: session?.user?.name || "Usuario",
     email: session?.user?.email || "",
@@ -195,12 +161,56 @@ export default function Profile() {
           {/* Header del Perfil */}
           <div className="bg-white rounded-xl shadow-sm p-8 mb-6">
             <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
-              {/* Avatar y Info Básica (mantén igual) */}
+              {/* Avatar */}
+              <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-2xl font-bold text-blue-600">
+                  {user.name.charAt(0)}
+                </span>
+              </div>
 
-              {/* Botones de Acción - ACTUALIZADO */}
+              {/* Información Principal */}
+              <div className="flex-1">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between">
+                  <div className="mb-4 md:mb-0">
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      {user.name}
+                    </h1>
+                    <p className="text-gray-600 text-lg mt-1">
+                      {user.career} • {user.semester}° Semestre
+                    </p>
+                    {user.bio && (
+                      <p className="text-gray-700 mt-3 max-w-2xl">{user.bio}</p>
+                    )}
+                  </div>
+
+                  {/* Rating Mejorado */}
+                  <div className="flex flex-col items-start md:items-end space-y-2">
+                    <div className="flex items-center space-x-3">
+                      {renderStars(user.rating || 0)}
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-900">
+                          {user.rating ? user.rating.toFixed(1) : "Nuevo"}
+                        </div>
+                        {user.reviewCount > 0 && (
+                          <div className="text-sm text-gray-600">
+                            {user.reviewCount}{" "}
+                            {user.reviewCount === 1 ? "reseña" : "reseñas"}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {!user.rating && (
+                      <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        Sin calificaciones aún
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones de Acción */}
               <div className="flex flex-wrap gap-3 ml-auto">
                 {session?.user?.id === userData?.id ? (
-                  // Botones para el propio perfil
                   <>
                     <Link
                       href="/profile/edit"
@@ -213,7 +223,6 @@ export default function Profile() {
                     </button>
                   </>
                 ) : (
-                  // Botones para perfiles de otros usuarios
                   <>
                     <button
                       onClick={handleSendRequest}
@@ -230,35 +239,141 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* ... (mantén el resto del perfil igual) */}
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Columna Izquierda - Información Personal */}
+            <div className="md:col-span-2 space-y-6">
+              {/* Habilidades */}
+              {user.skills && user.skills.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    Habilidades
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {user.skills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Request Button en la columna derecha - ACTUALIZADO */}
-          <div className="space-y-6">
-            {/* Stats (mantén igual) */}
-
-            {/* Request Button - ACTUALIZADO */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                {session?.user?.id === userData?.id
-                  ? "¿Buscas colaborar?"
-                  : `¿Interesado en colaborar con ${user.name}?`}
-              </h2>
-              <p className="text-gray-600 text-sm mb-4">
-                {session?.user?.id === userData?.id
-                  ? "Comparte tu perfil para recibir solicitudes de colaboración de otros estudiantes."
-                  : `Envía una solicitud a ${user.name} para proponerle un proyecto o colaboración.`}
-              </p>
-              {session?.user?.id !== userData?.id && (
-                <button
-                  onClick={handleSendRequest}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  📨 Enviar Request
-                </button>
+              {/* Intereses */}
+              {user.interests && user.interests.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    Intereses
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {user.interests.map((interest, index) => (
+                      <span
+                        key={index}
+                        className="bg-purple-100 text-purple-700 px-3 py-2 rounded-lg text-sm font-medium"
+                      >
+                        {interest}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Contacto (mantén igual) */}
+            {/* Columna Derecha - Stats y Acciones */}
+            <div className="space-y-6">
+              {/* Información del Usuario */}
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  Información
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Carrera</p>
+                    <p className="font-medium text-gray-900">{user.career}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Semestre</p>
+                    <p className="font-medium text-gray-900">
+                      {user.semester}° Semestre
+                    </p>
+                  </div>
+
+                  {/* Rating Detallado */}
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Calificación</p>
+                    <div className="flex items-center space-x-3">
+                      {renderStars(user.rating || 0)}
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {user.rating
+                            ? user.rating.toFixed(1) + " / 5.0"
+                            : "Sin calificaciones"}
+                        </p>
+                        {user.reviewCount > 0 && (
+                          <p className="text-sm text-gray-600">
+                            Basado en {user.reviewCount}{" "}
+                            {user.reviewCount === 1
+                              ? "colaboración"
+                              : "colaboraciones"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats de Rating */}
+              {user.rating && user.reviewCount > 0 && (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    Estadísticas
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {user.reviewCount}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Colaboraciones
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {user.rating.toFixed(1)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Rating Promedio
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Botón de Request */}
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                  {session?.user?.id === userData?.id
+                    ? "¿Buscas colaborar?"
+                    : `¿Interesado en colaborar con ${user.name}?`}
+                </h2>
+                <p className="text-gray-600 text-sm mb-4">
+                  {session?.user?.id === userData?.id
+                    ? "Comparte tu perfil para recibir solicitudes de colaboración de otros estudiantes."
+                    : `Envía una solicitud a ${user.name} para proponerle un proyecto o colaboración.`}
+                </p>
+                {session?.user?.id !== userData?.id && (
+                  <button
+                    onClick={handleSendRequest}
+                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    📨 Enviar Request
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -266,7 +381,7 @@ export default function Profile() {
       {/* Modal de Request */}
       {showRequestModal && userData && (
         <RequestModal
-          receiverId={userData.id} // ← Usar userData.id en lugar de user.id
+          receiverId={userData.id}
           receiverName={user.name}
           onClose={() => setShowRequestModal(false)}
           onSuccess={() => {
