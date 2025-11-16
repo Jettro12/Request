@@ -1,12 +1,11 @@
-// src/lib/auth.ts
+import { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
-import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { NextAuthOptions } from "next-auth";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -20,30 +19,35 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
+          where: { email: credentials.email },
         });
 
         if (!user || !user.password) {
           return null;
         }
 
-        const isValid = await bcrypt.compare(
+        const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
-        if (!isValid) {
+        if (!isPasswordValid) {
           return null;
         }
 
+        // Convertir campos null a undefined para que coincidan con el tipo User
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           career: user.career,
           semester: user.semester,
+          avatar: user.avatar || undefined, // ← Convertir null a undefined
+          bio: user.bio || undefined, // ← Convertir null a undefined
+          skills: user.skills,
+          interests: user.interests,
+          rating: user.rating,
+          reviewCount: user.reviewCount,
         };
       },
     }),
@@ -51,21 +55,17 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  pages: {
-    signIn: "/login",
-    signUp: "/register",
-  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.career = user.career;
-        token.semester = user.semester;
+        token.career = (user as any).career;
+        token.semester = (user as any).semester;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
+      if (token && session.user) {
         session.user.id = token.id as string;
         session.user.career = token.career as string;
         session.user.semester = token.semester as number;
@@ -73,5 +73,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: "/auth/signin",
+  },
 };

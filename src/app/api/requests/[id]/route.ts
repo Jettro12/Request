@@ -1,16 +1,23 @@
+// src/app/api/requests/[id]/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 
-// GET - Obtener todos los requests del usuario
-export async function GET() {
+// GET - Obtener un request específico por ID
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+
+    const { id: requestId } = await params;
 
     const currentUser = await prisma.user.findUnique({
       where: { email: session.user.email },
@@ -23,10 +30,8 @@ export async function GET() {
       );
     }
 
-    const requests = await prisma.request.findMany({
-      where: {
-        OR: [{ fromUserId: currentUser.id }, { toUserId: currentUser.id }],
-      },
+    const request = await prisma.request.findUnique({
+      where: { id: requestId },
       include: {
         fromUser: {
           select: {
@@ -35,6 +40,9 @@ export async function GET() {
             career: true,
             email: true,
             avatar: true,
+            semester: true,
+            rating: true,
+            skills: true,
           },
         },
         toUser: {
@@ -44,146 +52,47 @@ export async function GET() {
             career: true,
             email: true,
             avatar: true,
+            semester: true,
+            rating: true,
+            skills: true,
           },
         },
         messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+          orderBy: { createdAt: "asc" },
+          include: {
+            sender: {
+              select: {
+                id: true,
+                name: true,
+                avatar: true,
+              },
+            },
+          },
         },
       },
-      orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ requests });
-  } catch (error) {
-    console.error("Error obteniendo requests:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - Crear nuevo request
-export async function POST(request: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const {
-      toUserId,
-      type = "COLLABORATION",
-      message = "",
-    } = await request.json();
-
-    if (!toUserId) {
+    if (!request) {
       return NextResponse.json(
-        { error: "ID del usuario destino requerido" },
-        { status: 400 }
-      );
-    }
-
-    const currentUser = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: "Usuario no encontrado" },
+        { error: "Request no encontrado" },
         { status: 404 }
       );
     }
 
-    // Verificar que no es el mismo usuario
-    if (currentUser.id === toUserId) {
+    // Verificar que el usuario tiene acceso a este request
+    if (
+      request.fromUserId !== currentUser.id &&
+      request.toUserId !== currentUser.id
+    ) {
       return NextResponse.json(
-        { error: "No puedes enviarte un request a ti mismo" },
-        { status: 400 }
+        { error: "No tienes acceso a este request" },
+        { status: 403 }
       );
     }
 
-    // Verificar si ya existe un request ACTIVO entre estos usuarios
-    const existingActiveRequest = await prisma.request.findFirst({
-      where: {
-        OR: [
-          {
-            fromUserId: currentUser.id,
-            toUserId: toUserId,
-            status: { in: ["PENDING", "ACCEPTED"] },
-          },
-          {
-            fromUserId: toUserId,
-            toUserId: currentUser.id,
-            status: { in: ["PENDING", "ACCEPTED"] },
-          },
-        ],
-      },
-    });
-
-    if (existingActiveRequest) {
-      return NextResponse.json(
-        {
-          error: "Ya existe una conversación activa con este usuario",
-          existingRequest: existingActiveRequest,
-        },
-        { status: 409 }
-      );
-    }
-
-    // Crear nuevo request
-    const newRequest = await prisma.request.create({
-      data: {
-        fromUserId: currentUser.id,
-        toUserId: toUserId,
-        type: type,
-        message: message,
-        status: "PENDING",
-      },
-      include: {
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            career: true,
-            avatar: true,
-          },
-        },
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            career: true,
-            avatar: true,
-          },
-        },
-      },
-    });
-
-    console.log("✅ Nuevo request creado:", {
-      id: newRequest.id,
-      from: newRequest.fromUser.name,
-      to: newRequest.toUser.name,
-      status: newRequest.status,
-    });
-
-    return NextResponse.json({
-      success: true,
-      request: newRequest,
-    });
-  } catch (error: any) {
-    console.error("Error creando request:", error);
-
-    // Manejar error de constraint única de Prisma
-    if (error.code === "P2002") {
-      return NextResponse.json(
-        { error: "Ya existe una solicitud activa con este usuario" },
-        { status: 409 }
-      );
-    }
-
+    return NextResponse.json({ request });
+  } catch (error) {
+    console.error("Error obteniendo request:", error);
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }
@@ -204,7 +113,6 @@ export async function PUT(
     }
 
     const { status, rating, review } = await request.json();
-
     const { id: requestId } = await params;
 
     if (!requestId) {
@@ -310,6 +218,36 @@ export async function PUT(
       },
     });
 
+    // 🔔 CREAR NOTIFICACIONES según la acción
+    if (status === "ACCEPTED") {
+      await createNotification({
+        type: "REQUEST_ACCEPTED",
+        userId: existingRequest.fromUserId,
+        title: "Solicitud aceptada",
+        message: `${currentUser.name} aceptó tu solicitud de ${existingRequest.type}`,
+        relatedId: requestId,
+      });
+    } else if (status === "REJECTED") {
+      await createNotification({
+        type: "REQUEST_REJECTED",
+        userId: existingRequest.fromUserId,
+        title: "Solicitud rechazada",
+        message: `${currentUser.name} rechazó tu solicitud de ${existingRequest.type}`,
+        relatedId: requestId,
+      });
+    } else if (status === "COMPLETED") {
+      await createNotification({
+        type: "PROJECT_COMPLETED",
+        userId:
+          existingRequest.fromUserId === currentUser.id
+            ? existingRequest.toUserId
+            : existingRequest.fromUserId,
+        title: "Proyecto completado",
+        message: `${currentUser.name} marcó el proyecto como completado`,
+        relatedId: requestId,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       request: updatedRequest,
@@ -323,8 +261,8 @@ export async function PUT(
   }
 }
 
-// PATCH - Similar a PUT pero para actualizaciones parciales
-export async function PATCH(
+// DELETE - Eliminar request
+export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -335,15 +273,7 @@ export async function PATCH(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const body = await request.json();
     const { id: requestId } = await params;
-
-    if (!requestId) {
-      return NextResponse.json(
-        { error: "ID del request no proporcionado" },
-        { status: 400 }
-      );
-    }
 
     const currentUser = await prisma.user.findUnique({
       where: { email: session.user.email },
@@ -367,46 +297,24 @@ export async function PATCH(
       );
     }
 
-    // Verificar permisos (solo usuarios involucrados)
-    if (
-      existingRequest.fromUserId !== currentUser.id &&
-      existingRequest.toUserId !== currentUser.id
-    ) {
+    // Solo el creador puede eliminar el request
+    if (existingRequest.fromUserId !== currentUser.id) {
       return NextResponse.json(
-        { error: "No tienes permiso para modificar este request" },
+        { error: "No tienes permiso para eliminar este request" },
         { status: 403 }
       );
     }
 
-    const updatedRequest = await prisma.request.update({
+    await prisma.request.delete({
       where: { id: requestId },
-      data: body,
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            career: true,
-            avatar: true,
-          },
-        },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            career: true,
-            avatar: true,
-          },
-        },
-      },
     });
 
     return NextResponse.json({
       success: true,
-      request: updatedRequest,
+      message: "Request eliminado correctamente",
     });
   } catch (error) {
-    console.error("Error actualizando request:", error);
+    console.error("Error eliminando request:", error);
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }

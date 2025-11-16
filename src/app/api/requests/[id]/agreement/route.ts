@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
+import { MessageType } from "@prisma/client";
 
 export async function POST(
   request: Request,
@@ -66,7 +68,7 @@ export async function POST(
             senderId: currentUser.id,
             receiverId: currentUser.id,
             requestId: requestId,
-            type: messageType,
+            type: messageType as MessageType,
           },
           {
             content: `${currentUser.name} ha propuesto cerrar el acuerdo`,
@@ -76,9 +78,21 @@ export async function POST(
                 ? existingRequest.toUserId
                 : existingRequest.fromUserId,
             requestId: requestId,
-            type: messageType,
+            type: messageType as MessageType,
           },
         ],
+      });
+
+      // 🔔 NOTIFICACIÓN: Propuesta de acuerdo
+      await createNotification({
+        type: "AGREEMENT_PROPOSAL",
+        userId:
+          currentUser.id === existingRequest.fromUserId
+            ? existingRequest.toUserId
+            : existingRequest.fromUserId,
+        title: "Propuesta de acuerdo",
+        message: `${currentUser.name} ha propuesto cerrar el acuerdo`,
+        relatedId: requestId,
       });
     } else if (action === "accept") {
       const acceptedBy = [
@@ -102,7 +116,7 @@ export async function POST(
               senderId: currentUser.id,
               receiverId: currentUser.id,
               requestId: requestId,
-              type: messageType,
+              type: messageType as MessageType,
             },
             {
               content: messageContent,
@@ -112,12 +126,24 @@ export async function POST(
                   ? existingRequest.toUserId
                   : existingRequest.fromUserId,
               requestId: requestId,
-              type: messageType,
+              type: messageType as MessageType,
             },
           ],
         });
 
         shouldShowRating = true;
+
+        // 🔔 NOTIFICACIÓN: Ambos aceptaron el acuerdo
+        await createNotification({
+          type: "AGREEMENT_ACCEPTED",
+          userId:
+            currentUser.id === existingRequest.fromUserId
+              ? existingRequest.toUserId
+              : existingRequest.fromUserId,
+          title: "Acuerdo aceptado",
+          message: `${currentUser.name} aceptó tu propuesta de acuerdo - Ambos pueden calificar ahora`,
+          relatedId: requestId,
+        });
       } else {
         shouldShowRating = true;
 
@@ -128,7 +154,7 @@ export async function POST(
               senderId: currentUser.id,
               receiverId: currentUser.id,
               requestId: requestId,
-              type: messageType,
+              type: messageType as MessageType,
             },
             {
               content: messageContent,
@@ -138,9 +164,21 @@ export async function POST(
                   ? existingRequest.toUserId
                   : existingRequest.fromUserId,
               requestId: requestId,
-              type: messageType,
+              type: messageType as MessageType,
             },
           ],
+        });
+
+        // 🔔 NOTIFICACIÓN: Un usuario aceptó el acuerdo
+        await createNotification({
+          type: "AGREEMENT_ACCEPTED",
+          userId:
+            currentUser.id === existingRequest.fromUserId
+              ? existingRequest.toUserId
+              : existingRequest.fromUserId,
+          title: "Acuerdo aceptado",
+          message: `${currentUser.name} aceptó tu propuesta de acuerdo`,
+          relatedId: requestId,
         });
       }
     } else if (action === "reject") {
@@ -156,7 +194,7 @@ export async function POST(
             senderId: currentUser.id,
             receiverId: currentUser.id,
             requestId: requestId,
-            type: messageType,
+            type: messageType as MessageType,
           },
           {
             content: messageContent,
@@ -166,9 +204,21 @@ export async function POST(
                 ? existingRequest.toUserId
                 : existingRequest.fromUserId,
             requestId: requestId,
-            type: messageType,
+            type: messageType as MessageType,
           },
         ],
+      });
+
+      // 🔔 NOTIFICACIÓN: Acuerdo rechazado
+      await createNotification({
+        type: "AGREEMENT_REJECTED",
+        userId:
+          currentUser.id === existingRequest.fromUserId
+            ? existingRequest.toUserId
+            : existingRequest.fromUserId,
+        title: "Acuerdo rechazado",
+        message: `${currentUser.name} rechazó tu propuesta de acuerdo`,
+        relatedId: requestId,
       });
     }
 

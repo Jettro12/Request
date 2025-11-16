@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(request: Request) {
   try {
@@ -67,6 +68,18 @@ export async function POST(request: Request) {
           },
         },
       },
+    });
+
+    // ⭐ CREAR NOTIFICACIÓN para el receptor
+    await createNotification({
+      type: "NEW_MESSAGE",
+      userId: receiverId, // El que recibe el mensaje
+      title: "Nuevo mensaje",
+      message: `${currentUser.name} te envió un mensaje: "${content.substring(
+        0,
+        50
+      )}..."`,
+      relatedId: message.id,
     });
 
     return NextResponse.json({ message });

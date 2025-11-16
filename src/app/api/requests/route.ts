@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 
 // GET: Obtener requests del usuario (recibidos y enviados)
 export async function GET(request: Request) {
@@ -189,6 +190,15 @@ export async function POST(request: Request) {
       },
     });
 
+    // 🔔 CREAR NOTIFICACIÓN para el usuario que recibe la solicitud
+    await createNotification({
+      type: "REQUEST_RECEIVED",
+      userId: toUserId,
+      title: "Nueva solicitud recibida",
+      message: `${fromUser.name} te envió una solicitud de ${type}`,
+      relatedId: newRequest.id,
+    });
+
     return NextResponse.json(
       {
         message: "Solicitud enviada exitosamente",
@@ -204,3 +214,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+// ⚠️ REMOVER completamente la función PUT de este archivo

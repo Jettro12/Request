@@ -8,6 +8,47 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum NotificationType {
+  NEW_MESSAGE
+  REQUEST_RECEIVED
+  REQUEST_ACCEPTED
+  REQUEST_REJECTED
+  AGREEMENT_PROPOSAL
+  AGREEMENT_ACCEPTED
+  AGREEMENT_REJECTED
+  RATING_RECEIVED
+  PROJECT_COMPLETED
+}
+
+enum MessageType {
+  TEXT
+  AGREEMENT_PROPOSAL  // Propuesta de acuerdo
+  AGREEMENT_ACCEPTED  // Acuerdo aceptado
+  AGREEMENT_REJECTED  // Acuerdo rechazado
+  RATING_REQUEST 
+}
+enum PostType {
+  JOB
+  PROJECT
+  COLLABORATION
+  ENTREPRENEURSHIP
+  ANNOUNCEMENT
+}
+
+enum RequestType {
+  COLLABORATION
+  ADVICE
+  JOB_OFFER
+  MENTORSHIP
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -37,6 +78,7 @@ model User {
   receivedMessages Message[] @relation("ReceivedMessages")
   reviewsGiven     Review[]  @relation("ReviewsGiven")
   reviewsReceived  Review[]  @relation("ReviewsReceived")
+  notifications    Notification[]
 }
 
 // Agrega estos modelos para NextAuth
@@ -150,32 +192,17 @@ model Review {
 
   @@map("reviews")
 }
-
-enum MessageType {
-  TEXT
-  AGREEMENT_PROPOSAL  // Propuesta de acuerdo
-  AGREEMENT_ACCEPTED  // Acuerdo aceptado
-  AGREEMENT_REJECTED  // Acuerdo rechazado
-  RATING_REQUEST 
-}
-enum PostType {
-  JOB
-  PROJECT
-  COLLABORATION
-  ENTREPRENEURSHIP
-  ANNOUNCEMENT
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType
+  title       String
+  message     String
+  read        Boolean          @default(false)
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedId   String?          // ID del request, mensaje, user, etc.
+  createdAt   DateTime         @default(now())
+  
+  @@map("notifications")
 }
 
-enum RequestType {
-  COLLABORATION
-  ADVICE
-  JOB_OFFER
-  MENTORSHIP
-}
-
-enum RequestStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  COMPLETED
-}

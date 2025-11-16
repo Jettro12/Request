@@ -8,8 +8,8 @@ declare module "next-auth" {
     name: string;
     career: string;
     semester: number;
-    avatar?: string | null; // ← Permitir string | null | undefined
-    bio?: string | null; // ← Permitir string | null | undefined
+    avatar?: string;
+    bio?: string;
     skills: string[];
     interests: string[];
     rating: number;
