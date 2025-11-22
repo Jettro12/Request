@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,6 +5,162 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String         @id @default(cuid())
+  email             String         @unique
+  name              String
+  password          String?
+  avatar            String?
+  career            String
+  semester          Int
+  bio               String?
+  skills            String[]
+  interests         String[]
+  rating            Float          @default(0)
+  reviewCount       Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  emailVerified     DateTime?
+  accounts          Account[]
+  receivedMessages  Message[]      @relation("ReceivedMessages")
+  sentMessages      Message[]      @relation("SentMessages")
+  sentNotifications Notification[] @relation("NotificationSender")
+  notifications     Notification[] @relation("UserNotifications")
+  posts             Post[]
+  sentRequests      Request[]      @relation("SentRequests")
+  receivedRequests  Request[]      @relation("ReceivedRequests")
+  reviewsGiven      Review[]       @relation("ReviewsGiven")
+  reviewsReceived   Review[]       @relation("ReviewsReceived")
+  sessions          Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  type        PostType
+  authorId    String
+  careerSpace String
+  skills      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("posts")
+}
+
+model Request {
+  id                  String        @id @default(cuid())
+  type                RequestType
+  message             String
+  status              RequestStatus @default(PENDING)
+  fromUserId          String
+  toUserId            String
+  agreementProposedAt DateTime?
+  agreementAcceptedBy String[]
+  completedAt         DateTime?
+  fromUserRating      Int?
+  toUserRating        Int?
+  fromUserReview      String?
+  toUserReview        String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  messages            Message[]
+  fromUser            User          @relation("SentRequests", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser              User          @relation("ReceivedRequests", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@map("requests")
+}
+
+model Message {
+  id         String      @id @default(cuid())
+  content    String
+  requestId  String?
+  senderId   String
+  receiverId String
+  read       Boolean     @default(false)
+  type       MessageType @default(TEXT)
+  createdAt  DateTime    @default(now())
+  receiver   User        @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  request    Request?    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  sender     User        @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  rating      Int
+  comment     String?
+  fromUserId  String
+  toUserId    String
+  projectName String
+  createdAt   DateTime @default(now())
+  fromUser    User     @relation("ReviewsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User     @relation("ReviewsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  userId    String
+  senderId  String?
+  relatedId String?
+  createdAt DateTime         @default(now())
+  sender    User?            @relation("NotificationSender", fields: [senderId], references: [id])
+  user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
 }
 
 enum NotificationType {
@@ -22,11 +177,12 @@ enum NotificationType {
 
 enum MessageType {
   TEXT
-  AGREEMENT_PROPOSAL  // Propuesta de acuerdo
-  AGREEMENT_ACCEPTED  // Acuerdo aceptado
-  AGREEMENT_REJECTED  // Acuerdo rechazado
-  RATING_REQUEST 
+  AGREEMENT_PROPOSAL
+  AGREEMENT_ACCEPTED
+  AGREEMENT_REJECTED
+  RATING_REQUEST
 }
+
 enum PostType {
   JOB
   PROJECT
@@ -48,161 +204,3 @@ enum RequestStatus {
   REJECTED
   COMPLETED
 }
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String?  // ← NUEVO: Para autenticación por credenciales
-  avatar    String?
-  career    String
-  semester  Int
-  bio       String?
-  skills    String[]
-  interests String[]
-  rating    Float    @default(0)
-  reviewCount Int    @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Campos para NextAuth (si usas OAuth después)
-  emailVerified DateTime?
-  accounts      Account[]
-  sessions      Session[]
-
-  // Relaciones existentes
-  posts     Post[]
-  sentRequests     Request[] @relation("SentRequests")
-  receivedRequests Request[] @relation("ReceivedRequests")
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
-  reviewsGiven     Review[]  @relation("ReviewsGiven")
-  reviewsReceived  Review[]  @relation("ReviewsReceived")
-  notifications    Notification[]
-}
-
-// Agrega estos modelos para NextAuth
-model Account {
-  id                String  @id @default(cuid())
-  userId            String  @map("user_id")
-  type              String
-  provider          String
-  providerAccountId String  @map("provider_account_id")
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique @map("session_token")
-  userId       String   @map("user_id")
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
-}
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String
-  type      PostType
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  authorId  String
-  careerSpace String
-  skills    String[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("posts")
-}
-
-model Request {
-  id          String   @id @default(cuid())
-  type        RequestType
-  message     String
-  status      RequestStatus @default(PENDING)
-  fromUser    User     @relation("SentRequests", fields: [fromUserId], references: [id], onDelete: Cascade)
-  fromUserId  String
-  toUser      User     @relation("ReceivedRequests", fields: [toUserId], references: [id], onDelete: Cascade)
-  toUserId    String
-  messages    Message[]
-  
-  // Campos para acuerdos
-  agreementProposedAt DateTime?     // Cuando se propone el acuerdo
-  agreementAcceptedBy String[]      // Quién ha aceptado (array de user IDs)
-  completedAt        DateTime?      // Cuando se completa
-  fromUserRating     Int?           // Calificación (1-5)
-  toUserRating       Int?           // Calificación (1-5)
-  fromUserReview     String?
-  toUserReview       String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // ✅ CORRECTO: Usar doble corchete para múltiples constraints
-  @@unique([fromUserId, toUserId, status])
-  
-  @@map("requests")
-}
-
-model Message {
-  id        String   @id @default(cuid())
-  content   String
-  request   Request? @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  requestId String?
-  sender    User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  senderId  String
-  receiver  User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  receiverId String
-  read      Boolean  @default(false)
-  type      MessageType @default(TEXT) // ← NUEVO: Tipo de mensaje
-  createdAt DateTime @default(now())
-
-  @@map("messages")
-}
-
-model Review {
-  id          String   @id @default(cuid())
-  rating      Int      // 1-5
-  comment     String?
-  fromUser    User     @relation("ReviewsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
-  fromUserId  String
-  toUser      User     @relation("ReviewsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
-  toUserId    String
-  projectName String
-  createdAt   DateTime @default(now())
-
-  @@map("reviews")
-}
-model Notification {
-  id          String           @id @default(cuid())
-  type        NotificationType
-  title       String
-  message     String
-  read        Boolean          @default(false)
-  userId      String
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  relatedId   String?          // ID del request, mensaje, user, etc.
-  createdAt   DateTime         @default(now())
-  
-  @@map("notifications")
-}
-

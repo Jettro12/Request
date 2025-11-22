@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
-import { createNotification } from "@/lib/notifications";
 
 export async function POST(request: Request) {
   try {
@@ -70,17 +69,40 @@ export async function POST(request: Request) {
       },
     });
 
-    // ⭐ CREAR NOTIFICACIÓN para el receptor
-    await createNotification({
-      type: "NEW_MESSAGE",
-      userId: receiverId, // El que recibe el mensaje
-      title: "Nuevo mensaje",
-      message: `${currentUser.name} te envió un mensaje: "${content.substring(
-        0,
-        50
-      )}..."`,
-      relatedId: message.id,
-    });
+    // ✅ CREAR NOTIFICACIÓN usando URL relativa
+    try {
+      const notificationResponse = await fetch(
+        `${request.headers.get("origin") || ""}/api/notifications`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "NEW_MESSAGE",
+            title: "Nuevo mensaje",
+            message: `${
+              currentUser.name
+            } te envió un mensaje: "${content.substring(0, 50)}..."`,
+            relatedId: message.id,
+            targetUsers: [receiverId],
+            senderId: currentUser.id,
+          }),
+        }
+      );
+
+      if (!notificationResponse.ok) {
+        console.error(
+          "Error creando notificación:",
+          await notificationResponse.text()
+        );
+      } else {
+        console.log("✅ Notificación de mensaje creada");
+      }
+    } catch (notificationError) {
+      console.error("Error en fetch de notificación:", notificationError);
+      // No fallar la operación principal si la notificación falla
+    }
 
     return NextResponse.json({ message });
   } catch (error) {

@@ -1,9 +1,7 @@
-// src/app/api/requests/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
-import { createNotification } from "@/lib/notifications";
 
 // GET: Obtener requests del usuario (recibidos y enviados)
 export async function GET(request: Request) {
@@ -190,14 +188,38 @@ export async function POST(request: Request) {
       },
     });
 
-    // 🔔 CREAR NOTIFICACIÓN para el usuario que recibe la solicitud
-    await createNotification({
-      type: "REQUEST_RECEIVED",
-      userId: toUserId,
-      title: "Nueva solicitud recibida",
-      message: `${fromUser.name} te envió una solicitud de ${type}`,
-      relatedId: newRequest.id,
-    });
+    // ✅ CREAR NOTIFICACIÓN usando URL relativa
+    try {
+      const notificationResponse = await fetch(
+        `${request.headers.get("origin") || ""}/api/notifications`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "REQUEST_RECEIVED",
+            title: "Nueva solicitud recibida",
+            message: `${fromUser.name} te envió una solicitud de ${type}`,
+            relatedId: newRequest.id,
+            targetUsers: [toUserId],
+            senderId: fromUser.id,
+          }),
+        }
+      );
+
+      if (!notificationResponse.ok) {
+        console.error(
+          "Error creando notificación:",
+          await notificationResponse.text()
+        );
+      } else {
+        console.log("✅ Notificación de solicitud creada");
+      }
+    } catch (notificationError) {
+      console.error("Error en fetch de notificación:", notificationError);
+      // No fallar la operación principal si la notificación falla
+    }
 
     return NextResponse.json(
       {
@@ -214,5 +236,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-// ⚠️ REMOVER completamente la función PUT de este archivo

@@ -1,4 +1,3 @@
-// src/app/api/posts/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/db";
@@ -123,6 +122,39 @@ export async function POST(request: Request) {
         },
       },
     });
+
+    // ✅ CREAR NOTIFICACIÓN usando URL relativa
+    try {
+      const notificationResponse = await fetch(
+        `${request.headers.get("origin") || ""}/api/notifications`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "NEW_POST",
+            title: "Nueva publicación",
+            message: `${user.name} publicó en ${careerSpace}: ${title}`,
+            relatedId: post.id,
+            targetCareer: careerSpace,
+            senderId: user.id,
+          }),
+        }
+      );
+
+      if (!notificationResponse.ok) {
+        console.error(
+          "Error creando notificación:",
+          await notificationResponse.text()
+        );
+      } else {
+        console.log("✅ Notificación de publicación creada");
+      }
+    } catch (notificationError) {
+      console.error("Error en fetch de notificación:", notificationError);
+      // No fallar la operación principal si la notificación falla
+    }
 
     return NextResponse.json(
       {
