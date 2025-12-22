@@ -1,0 +1,31 @@
+services:
+  kafka:
+    environment:
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: -1
+
+  notification-service:
+    environment:
+      KAFKA_CLIENT_ID: notification-service-dev
+      KAFKA_GROUP_ID: notification-service-group-dev
+
+  posts-service:
+    environment:
+      KAFKA_CLIENT_ID: posts-service-dev
+      KAFKA_GROUP_ID: posts-service-group-dev
+
+  requests-service:
+    environment:
+      KAFKA_CLIENT_ID: requests-service-dev
+      KAFKA_GROUP_ID: requests-service-group-dev
+
+  # --- Nuevos servicios agregados ---
+  messages-service:
+    environment:
+      KAFKA_CLIENT_ID: messages-service-dev
+      KAFKA_GROUP_ID: messages-service-group-dev
+
+  conversations-service:
+    environment:
+      KAFKA_CLIENT_ID: conversations-service-dev
+      KAFKA_GROUP_ID: conversations-service-group-dev

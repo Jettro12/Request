@@ -1,0 +1,315 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # INFRAESTRUCTURA BASE
+  # ==========================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      microservices-net:
+        aliases:
+          - zookeeper-host
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    restart: on-failure
+    hostname: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092" # Interno
+      - "29092:29092" # Externo (Host)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka:9092,PLAINTEXT_EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      microservices-net:
+        aliases:
+          - kafka-broker
+    healthcheck:
+      test:
+        ["CMD", "kafka-topics", "--list", "--bootstrap-server", "kafka:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: requestdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      microservices-net:
+        aliases:
+          - postgres-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      microservices-net:
+        aliases:
+          - redis-cache
+
+  # ==========================================
+  # MICROSERVICIOS (EXISTENTES)
+  # ==========================================
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification-service
+    hostname: notification-service
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    extra_hosts:
+      - "kafka:host-gateway"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      KAFKA_BROKER: kafka:9092
+      PORT: 4001
+      NODE_ENV: development
+    command: sh -c "npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  posts-service:
+    build: ./services/posts-service
+    container_name: posts-service
+    hostname: posts-service
+    ports:
+      - "4002:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    extra_hosts:
+      - "kafka:host-gateway"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      KAFKA_BROKER: kafka:9092
+      PORT: 4002
+      NODE_ENV: development
+    command: sh -c "npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  requests-service:
+    build: ./services/requests-service
+    container_name: requests-service
+    hostname: requests-service
+    ports:
+      - "4003:4003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    extra_hosts:
+      - "kafka:host-gateway"
+      - "notification-service:host-gateway"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      KAFKA_BROKER: kafka:9092
+      NOTIFICATIONS_SERVICE_URL: http://notification-service:4001
+      PORT: 4003
+      NODE_ENV: development
+    command: sh -c "npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: auth-service
+    hostname: auth-service
+    ports:
+      - "4004:4004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      PORT: 4004
+      NODE_ENV: development
+    # Incluye el fix para TypeScript
+    command: >
+      sh -c "
+      if [ -f tsconfig.json ]; then
+        sed -i 's/\"module\": \"NodeNext\"/\"module\": \"commonjs\"/g' tsconfig.json 2>/dev/null || true &&
+        sed -i 's/\"moduleResolution\": \"NodeNext\"/\"moduleResolution\": \"node\"/g' tsconfig.json 2>/dev/null || true
+      fi &&
+      npx prisma generate && npm run dev
+      "
+    networks:
+      - microservices-net
+
+  profile-service:
+    build: ./services/profile-service
+    container_name: profile-service
+    hostname: profile-service
+    ports:
+      - "4005:4005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      PORT: 4005
+      NODE_ENV: development
+    command: sh -c "npm install rimraf@latest glob@latest && npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  ratings-service:
+    build: ./services/ratings-service
+    container_name: ratings-service
+    hostname: ratings-service
+    ports:
+      - "4006:4006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      PORT: 4006
+      NODE_ENV: development
+    command: sh -c "npm install rimraf@latest glob@latest && npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  # ==========================================
+  # NUEVOS MICROSERVICIOS (INTEGRADOS)
+  # ==========================================
+  users-service:
+    build: ./services/users-service
+    container_name: users-service
+    hostname: users-service
+    ports:
+      - "4007:4007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      PORT: 4007
+      NODE_ENV: development
+    command: sh -c "npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  messages-service:
+    build: ./services/messages-service
+    container_name: messages-service
+    hostname: messages-service
+    ports:
+      - "4008:4008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    extra_hosts:
+      - "kafka:host-gateway"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      KAFKA_BROKER: kafka:9092
+      PORT: 4008
+      NODE_ENV: development
+    command: sh -c "npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  conversations-service:
+    build: ./services/conversations-service
+    container_name: conversations-service
+    hostname: conversations-service
+    ports:
+      - "4009:4009"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    extra_hosts:
+      - "kafka:host-gateway"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestdb
+      KAFKA_BROKER: kafka:9092
+      PORT: 4009
+      NODE_ENV: development
+    command: sh -c "npx prisma generate && npm run dev"
+    networks:
+      - microservices-net
+
+  chat-service:
+    build: ./services/chat-service
+    container_name: chat-service
+    hostname: chat-service
+    ports:
+      - "4010:4010"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    extra_hosts:
+      - "kafka:host-gateway"
+    environment:
+      KAFKA_BROKER: kafka:9092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CORS_ORIGIN: "http://localhost:3000"
+      PORT: 4010
+      NODE_ENV: development
+    command: sh -c "npm run dev"
+    networks:
+      - microservices-net
+
+# ==========================================
+# VOLÚMENES Y REDES
+# ==========================================
+volumes:
+  pg_data:
+  redis_data:
+
+networks:
+  microservices-net:
+    driver: bridge
+    name: request-app-microservices-net
