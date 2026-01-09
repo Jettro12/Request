@@ -1,5 +1,4 @@
 import { ApiClient } from "../api/client";
-import { API_ENDPOINTS } from "../api/config";
 
 export interface User {
   id: string;
@@ -17,23 +16,24 @@ export interface User {
 
 export const usersService = {
   getAll: async (params?: { career?: string; search?: string }) => {
-    return ApiClient.get<{ users: User[] }>(
-      API_ENDPOINTS.USERS.GET_ALL,
-      params
-    );
-  },
-
-  getById: async (id: string) => {
-    return ApiClient.get<{ user: User }>(API_ENDPOINTS.USERS.GET_BY_ID(id));
-  },
-
-  search: async (query: string) => {
-    return ApiClient.get<{ users: User[] }>(API_ENDPOINTS.USERS.SEARCH, {
-      q: query,
+    // Mapeamos a searchUsers que maneja filtros
+    return ApiClient.users.searchUsers({
+      career: params?.career,
+      query: params?.search,
+      page: 1,
+      limit: 100, // O el límite que desees por defecto
     });
   },
 
+  getById: async (id: string) => {
+    return ApiClient.users.getUserProfile(id);
+  },
+
+  search: async (query: string) => {
+    return ApiClient.users.searchUsers({ query });
+  },
+
   update: async (id: string, data: Partial<User>) => {
-    return ApiClient.put<{ user: User }>(API_ENDPOINTS.USERS.UPDATE(id), data);
+    return ApiClient.users.updateProfile(id, data);
   },
 };

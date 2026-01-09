@@ -177,3 +177,12 @@ ChatSvc --> Redis
 
 4. **Kafka para Eventos**: Se usa para desacoplar servicios y permitir escalabilidad horizontal.
 
+
+
+
+
+
+
+
+
+

@@ -7,7 +7,6 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4008;
 
-// Configurar Kafka
 const kafka = new Kafka({
   clientId: "messages-service",
   brokers: [process.env.KAFKA_BROKER || "kafka:9092"],
@@ -18,62 +17,48 @@ const consumer = kafka.consumer({ groupId: "messages-service-group" });
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"], // 👈 ESPECIFICA EL FRONTEND
-    credentials: true, // 👈 PERMITE LAS COOKIES/TOKENS
+    origin: process.env.CORS_ORIGIN?.split(",") || [
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "http://frontend:3000",
+    ],
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(express.json());
 
-// Conectar a Kafka
 async function connectKafka() {
   await producer.connect();
   await consumer.connect();
   await consumer.subscribe({ topic: "user-messages", fromBeginning: true });
-
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
-      console.log("Received message from Kafka:", message.value?.toString());
-      // Aquí procesar mensajes de otros servicios si es necesario
+      console.log("Received message:", message.value?.toString());
     },
   });
-
   console.log("Kafka connected for messages service");
 }
 
-// Health check
 app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    service: "messages-service",
-    timestamp: new Date().toISOString(),
-    kafka: "connected", // Simplificado para evitar errores de tipo si producer es interno
-  });
+  res.json({ status: "OK", service: "messages-service", kafka: "connected" });
 });
 
-// Enviar mensaje
-app.post("/messages", async (req, res) => {
+// 👇 RUTAS ALINEADAS CON NGINX 👇
+// NGINX rewrite: /messages → / (antes de pasar al servicio)
+// Por lo tanto, las rutas deben ser RAÍZ (/)
+
+app.post("/", async (req, res) => {
   try {
     const { senderId, receiverId, content } = req.body;
+    if (!senderId || !receiverId || !content)
+      return res.status(400).json({ error: "Missing fields" });
 
-    if (!senderId || !receiverId || !content) {
-      return res
-        .status(400)
-        .json({ error: "senderId, receiverId and content are required" });
-    }
-
-    // Guardar en base de datos
     const message = await prisma.message.create({
-      data: {
-        senderId,
-        receiverId,
-        content,
-        isRead: false,
-      },
+      data: { senderId, receiverId, content, isRead: false },
     });
 
-    // Publicar evento a Kafka
     await producer.send({
       topic: "message-sent",
       messages: [
@@ -92,12 +77,10 @@ app.post("/messages", async (req, res) => {
 
     res.status(201).json(message);
   } catch (error: any) {
-    console.error("Error sending message:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Obtener mensajes entre dos usuarios
 app.get("/messages/:userId1/:userId2", async (req, res) => {
   try {
     const { userId1, userId2 } = req.params;
@@ -115,19 +98,16 @@ app.get("/messages/:userId1/:userId2", async (req, res) => {
       take: parseInt(limit as string),
     });
 
-    res.json(messages.reverse()); // Orden cronológico
+    res.json(messages.reverse());
   } catch (error: any) {
-    console.error("Error fetching messages:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Obtener conversaciones de un usuario (CORREGIDO)
 app.get("/users/:userId/conversations", async (req, res) => {
   try {
     const { userId } = req.params;
-
-    // CORRECCIÓN: Usamos $queryRaw y template literals en lugar de "\"
+    // Usamos template string para query raw
     const conversations = await prisma.$queryRaw`
       SELECT DISTINCT ON (contact_id) 
         m.*,
@@ -135,53 +115,36 @@ app.get("/users/:userId/conversations", async (req, res) => {
           WHEN m.sender_id = ${userId} THEN m.receiver_id
           ELSE m.sender_id
         END as contact_id
-      FROM messages m
+      FROM "Message" m
       WHERE m.sender_id = ${userId} OR m.receiver_id = ${userId}
       ORDER BY contact_id, m.created_at DESC
     `;
-
     res.json(conversations);
   } catch (error: any) {
-    console.error("Error fetching conversations:", error);
+    console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Marcar mensajes como leídos
 app.put("/messages/read", async (req, res) => {
   try {
     const { messageIds, userId } = req.body;
-
-    if (!messageIds || !Array.isArray(messageIds) || !userId) {
-      return res
-        .status(400)
-        .json({ error: "messageIds array and userId are required" });
-    }
-
     const updated = await prisma.message.updateMany({
-      where: {
-        id: { in: messageIds },
-        receiverId: userId,
-      },
+      where: { id: { in: messageIds }, receiverId: userId },
       data: { isRead: true },
     });
-
     res.json({ updated: updated.count });
   } catch (error: any) {
-    console.error("Error marking messages as read:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Iniciar servidor
 async function startServer() {
   try {
     await connectKafka();
-
-    app.listen(PORT, () => {
+    // 👇 CORRECCIÓN IMPORTANTE: AÑADIDO "0.0.0.0"
+    app.listen(Number(PORT), "0.0.0.0", () => {
       console.log(`Messages service listening on ${PORT}`);
-      console.log("Messages prisma connected");
-      console.log("Kafka ready for messaging events");
     });
   } catch (error) {
     console.error("Failed to start messages service:", error);

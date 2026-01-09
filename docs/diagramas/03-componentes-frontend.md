@@ -250,3 +250,12 @@ Middleware --> NextAuth
 4. NextAuth maneja la autenticación
 5. Middleware protege rutas que requieren autenticación
 
+
+
+
+
+
+
+
+
+

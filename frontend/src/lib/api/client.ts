@@ -1,5 +1,5 @@
-import { getSession } from "next-auth/react"; // 👈 IMPORTANTE: Importamos esto
-import { API_ENDPOINTS } from "./config";
+import { getSession } from "next-auth/react";
+import { getApiUrl } from "@/config/api";
 
 export class ApiError extends Error {
   constructor(message: string, public status?: number, public data?: any) {
@@ -8,19 +8,23 @@ export class ApiError extends Error {
   }
 }
 
-// Interfaces para TypeScript
+// ==========================================
+// INTERFACES - ACTUALIZADAS CON CAMPOS OPCIONALES
+// ==========================================
 export interface User {
   id: string;
   name: string;
-  email: string;
-  career: string;
-  semester: number;
-  rating: number;
-  reviewCount: number;
+  email?: string;
+  career?: string;
+  semester?: number;
+  rating?: number;
+  reviewCount?: number;
   bio?: string;
-  skills: string[];
-  interests: string[];
-  createdAt: string;
+  skills?: string[];
+  interests?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  avatar?: string;
 }
 
 export interface Post {
@@ -34,10 +38,10 @@ export interface Post {
   author: {
     id: string;
     name: string;
-    career: string;
-    semester: number;
-    rating: number;
-    skills: string[];
+    career?: string;
+    semester?: number;
+    rating?: number;
+    skills?: string[];
   };
 }
 
@@ -87,23 +91,25 @@ export interface UsersResponse {
   limit?: number;
 }
 
+// ==========================================
+// API CLIENT PRINCIPAL - CORREGIDO
+// ==========================================
 export class ApiClient {
-  // 👇 AQUÍ ESTÁ LA MAGIA DE LA AUTENTICACIÓN
+  // 👇 GESTIÓN DE TOKEN Y HEADERS
   private static async fetchWithAuth(
     url: string,
     options: RequestInit = {}
   ): Promise<Response> {
-    // 1. Obtener la sesión actual
     const session: any = await getSession();
-    const token = session?.accessToken; // Recuperamos el token que guardamos en auth.ts
+    const token = session?.accessToken || session?.user?.accessToken;
 
-    // 2. Construir headers con el token
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      // Si hay token, lo inyectamos como Bearer
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers as Record<string, string>),
     };
+
+    console.log("🚀 FETCH →", url);
 
     return fetch(url, {
       ...options,
@@ -113,11 +119,16 @@ export class ApiClient {
   }
 
   private static async handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = { message: response.statusText };
+    }
 
     if (!response.ok) {
       throw new ApiError(
-        data.message || "Error en la solicitud",
+        data.message || data.error || "Error en la solicitud",
         response.status,
         data
       );
@@ -126,17 +137,47 @@ export class ApiClient {
     return data;
   }
 
-  // Métodos HTTP genéricos
+  // --- MÉTODOS GENÉRICOS MEJORADOS ---
   static async get<T>(url: string, params?: Record<string, any>): Promise<T> {
-    const query = params ? new URLSearchParams(params).toString() : "";
-    const fullUrl = query ? `${url}?${query}` : url;
+    // Filtrar parámetros undefined, null, "undefined", "null", o vacíos
+    const cleanParams = params
+      ? Object.entries(params).reduce((acc, [key, value]) => {
+          if (value === undefined || value === null) return acc;
+
+          const stringValue = String(value).trim();
+          if (
+            stringValue === "" ||
+            stringValue === "undefined" ||
+            stringValue === "null"
+          ) {
+            return acc;
+          }
+
+          acc[key] = value;
+          return acc;
+        }, {} as Record<string, any>)
+      : undefined;
+
+    const query =
+      cleanParams && Object.keys(cleanParams).length > 0
+        ? new URLSearchParams(cleanParams).toString()
+        : "";
+
+    // CORRECCIÓN: Eliminar barras duplicadas antes del query string
+    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
+    const fullUrl = query ? `${cleanUrl}?${query}` : cleanUrl;
+
+    console.log("🌐 API GET:", fullUrl);
 
     const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
     return this.handleResponse<T>(response);
   }
 
   static async post<T>(url: string, body?: any): Promise<T> {
-    const response = await this.fetchWithAuth(url, {
+    // CORRECCIÓN: Eliminar barras duplicadas
+    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
+    console.log("🌐 API POST:", cleanUrl, body);
+    const response = await this.fetchWithAuth(cleanUrl, {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -144,7 +185,9 @@ export class ApiClient {
   }
 
   static async put<T>(url: string, body?: any): Promise<T> {
-    const response = await this.fetchWithAuth(url, {
+    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
+    console.log("🌐 API PUT:", cleanUrl, body);
+    const response = await this.fetchWithAuth(cleanUrl, {
       method: "PUT",
       body: JSON.stringify(body),
     });
@@ -152,224 +195,197 @@ export class ApiClient {
   }
 
   static async delete<T>(url: string): Promise<T> {
-    const response = await this.fetchWithAuth(url, { method: "DELETE" });
+    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
+    console.log("🌐 API DELETE:", cleanUrl);
+    const response = await this.fetchWithAuth(cleanUrl, { method: "DELETE" });
     return this.handleResponse<T>(response);
   }
 
-  // ========== AUTH SERVICE ==========
+  static async patch<T>(url: string, body?: any): Promise<T> {
+    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
+    console.log("🌐 API PATCH:", cleanUrl, body);
+    const response = await this.fetchWithAuth(cleanUrl, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  // ==========================================
+  // SERVICIOS - CORREGIDOS
+  // ==========================================
+
+  // AUTH SERVICE
   static auth = {
-    register: async (data: {
-      email: string;
-      password: string;
-      name: string;
-    }): Promise<ApiResponse<{ userId: string }>> => {
+    register: async (data: any): Promise<ApiResponse<{ userId: string }>> => {
       try {
-        // Registro no suele requerir Auth header, pero no hace daño
-        const response = await ApiClient.post<ApiResponse<{ userId: string }>>(
-          `${API_ENDPOINTS.AUTH}/register`,
-          data
-        );
+        // CORRECCIÓN: Usar path vacío
+        const url = getApiUrl("auth", "");
+        const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    login: async (credentials: {
-      email: string;
-      password: string;
-    }): Promise<ApiResponse<{ token: string; user: any }>> => {
+    login: async (credentials: any): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.post<
-          ApiResponse<{ token: string; user: any }>
-        >(`${API_ENDPOINTS.AUTH}/login`, credentials);
+        const url = getApiUrl("auth", "login");
+        const response = await ApiClient.post<ApiResponse>(url, credentials);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     logout: async (): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.post<ApiResponse>(
-          `${API_ENDPOINTS.AUTH}/logout`
-        );
+        const url = getApiUrl("auth", "logout");
+        const response = await ApiClient.post<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };
 
-  // ========== USERS SERVICE ==========
+  // USERS SERVICE
   static users = {
     getUserProfile: async (
       userId: string
     ): Promise<ApiResponse<{ user: User }>> => {
       try {
-        const response = await ApiClient.get<ApiResponse<{ user: User }>>(
-          `${API_ENDPOINTS.USERS}/${userId}`
-        );
+        const url = getApiUrl("users", userId);
+        const response = await ApiClient.get<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    createProfile: async (data: {
-      userId: string;
-      name: string;
-      email: string;
-      career: string;
-      semester: number;
-      bio: string;
-      skills: string[];
-      interests: string[];
-    }): Promise<ApiResponse> => {
+    createProfile: async (data: any): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.post<ApiResponse>(
-          `${API_ENDPOINTS.USERS}/profile`,
-          data
-        );
+        const url = getApiUrl("profile", "");
+        const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    updateProfile: async (
-      userId: string,
-      data: {
-        name?: string;
-        career?: string;
-        semester?: number;
-        bio?: string;
-        skills?: string[];
-        interests?: string[];
-      }
-    ): Promise<ApiResponse> => {
+    updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.put<ApiResponse>(
-          `${API_ENDPOINTS.USERS}/${userId}/profile`,
-          data
-        );
+        const url = getApiUrl("profile", userId);
+        const response = await ApiClient.put<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    searchUsers: async (params: {
-      query?: string;
-      career?: string;
-      skills?: string[];
-      interests?: string[];
-      page?: number;
-      limit?: number;
-    }): Promise<ApiResponse<UsersResponse>> => {
+    searchUsers: async (params: any): Promise<ApiResponse<UsersResponse>> => {
       try {
+        const url = getApiUrl("users", "search");
         const response = await ApiClient.get<ApiResponse<UsersResponse>>(
-          `${API_ENDPOINTS.USERS}/search`,
+          url,
           params
         );
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     getUsersByCareer: async (
       career: string,
-      page: number = 1,
-      limit: number = 20
+      page = 1,
+      limit = 20
     ): Promise<ApiResponse<UsersResponse>> => {
       try {
-        const response = await ApiClient.get<ApiResponse<UsersResponse>>(
-          `${API_ENDPOINTS.USERS}/career/${career}`,
-          { page, limit }
-        );
+        const url = getApiUrl("users", `career/${career}`);
+        const response = await ApiClient.get<ApiResponse<UsersResponse>>(url, {
+          page,
+          limit,
+        });
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };
 
-  // ========== POSTS SERVICE ==========
+  // POSTS SERVICE - CORREGIDO
   static posts = {
-    createPost: async (data: {
-      title: string;
-      content: string;
-      type: string;
-      careerSpace: string;
-      skills: string[];
-      authorId: string;
-    }): Promise<ApiResponse<{ postId: string }>> => {
+    createPost: async (data: any): Promise<ApiResponse<{ postId: string }>> => {
       try {
-        const response = await ApiClient.post<ApiResponse<{ postId: string }>>(
-          `${API_ENDPOINTS.POSTS}`,
-          data
-        );
+        // CORRECCIÓN: Usar path vacío en lugar de "/"
+        const url = getApiUrl("posts", "");
+        const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    getPosts: async (params: {
+    getPosts: async (params?: {
       careerSpace?: string;
       type?: string;
-      authorId?: string;
       page?: number;
       limit?: number;
+      [key: string]: any;
     }): Promise<ApiResponse<PostsResponse>> => {
       try {
+        // CORRECCIÓN PRINCIPAL: Usar path vacío, no "/"
+        const url = getApiUrl("posts", "");
+        console.log("📡 URL para getPosts:", url);
+
+        // Parámetros por defecto
+        const defaultParams = {
+          page: 1,
+          limit: 20,
+          ...params,
+        };
+
+        // Filtrar valores específicos que no queremos enviar
+        const cleanParams: Record<string, any> = {
+          page: defaultParams.page,
+          limit: defaultParams.limit,
+        };
+
+        // Solo agregar careerSpace si tiene un valor válido
+        if (
+          defaultParams.careerSpace &&
+          defaultParams.careerSpace !== "undefined" &&
+          defaultParams.careerSpace !== "null" &&
+          defaultParams.careerSpace.trim() !== "" &&
+          defaultParams.careerSpace !== "Todos los espacios"
+        ) {
+          cleanParams.careerSpace = defaultParams.careerSpace;
+        }
+
+        // Solo agregar type si tiene un valor válido
+        if (
+          defaultParams.type &&
+          defaultParams.type !== "undefined" &&
+          defaultParams.type !== "null" &&
+          defaultParams.type.trim() !== "" &&
+          defaultParams.type !== "all"
+        ) {
+          cleanParams.type = defaultParams.type;
+        }
+
+        console.log("📡 Fetching posts with params:", cleanParams);
+
         const response = await ApiClient.get<ApiResponse<PostsResponse>>(
-          `${API_ENDPOINTS.POSTS}`,
-          params
+          url,
+          cleanParams
         );
         return response;
-      } catch (error) {
+      } catch (error: any) {
+        console.error("❌ Error in getPosts:", error);
         return {
           success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
+          error: error.message || "Error fetching posts",
         };
       }
     },
@@ -378,79 +394,46 @@ export class ApiClient {
       postId: string
     ): Promise<ApiResponse<{ post: Post }>> => {
       try {
-        const response = await ApiClient.get<ApiResponse<{ post: Post }>>(
-          `${API_ENDPOINTS.POSTS}/${postId}`
-        );
+        const url = getApiUrl("posts", postId);
+        const response = await ApiClient.get<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    updatePost: async (
-      postId: string,
-      data: {
-        title?: string;
-        content?: string;
-        type?: string;
-        careerSpace?: string;
-        skills?: string[];
-      }
-    ): Promise<ApiResponse> => {
+    updatePost: async (postId: string, data: any): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.put<ApiResponse>(
-          `${API_ENDPOINTS.POSTS}/${postId}`,
-          data
-        );
+        const url = getApiUrl("posts", postId);
+        const response = await ApiClient.put<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     deletePost: async (postId: string): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.delete<ApiResponse>(
-          `${API_ENDPOINTS.POSTS}/${postId}`
-        );
+        const url = getApiUrl("posts", postId);
+        const response = await ApiClient.delete<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };
 
-  // ========== REQUESTS SERVICE ==========
+  // REQUESTS SERVICE - CORREGIDO
   static requests = {
-    createRequest: async (data: {
-      type: string;
-      message: string;
-      fromUserId: string;
-      toUserId: string;
-    }): Promise<ApiResponse<{ requestId: string }>> => {
+    createRequest: async (
+      data: any
+    ): Promise<ApiResponse<{ requestId: string }>> => {
       try {
-        const response = await ApiClient.post<
-          ApiResponse<{ requestId: string }>
-        >(`${API_ENDPOINTS.REQUESTS}`, data);
+        const url = getApiUrl("requests", "");
+        const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
@@ -459,77 +442,77 @@ export class ApiClient {
       type: "all" | "received" | "sent" = "all"
     ): Promise<ApiResponse<{ requests: Request[] }>> => {
       try {
-        const response = await ApiClient.get<
-          ApiResponse<{ requests: Request[] }>
-        >(`${API_ENDPOINTS.REQUESTS}/user/${userId}?type=${type}`);
+        const url = getApiUrl("requests", `user/${userId}`);
+        const response = await ApiClient.get<ApiResponse>(url, { type });
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     updateRequestStatus: async (
       requestId: string,
-      status: string
+      status: string,
+      userId?: string
     ): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.put<ApiResponse>(
-          `${API_ENDPOINTS.REQUESTS}/${requestId}/status`,
-          { status }
-        );
+        const url = getApiUrl("requests", `${requestId}/status`);
+        const session: any = await getSession();
+        const userIdToUse = userId || session?.user?.id;
+        const response = await ApiClient.put<ApiResponse>(url, {
+          status,
+          userId: userIdToUse,
+        });
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     completeRequest: async (
       requestId: string,
-      data: {
-        rating: number;
-        review?: string;
-      }
+      data: any
     ): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.post<ApiResponse>(
-          `${API_ENDPOINTS.REQUESTS}/${requestId}/complete`,
-          data
-        );
+        const url = getApiUrl("requests", `${requestId}/complete`);
+        const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    getByChat: async (
+      otherUserId: string
+    ): Promise<ApiResponse<{ request: any }>> => {
+      try {
+        const session: any = await getSession();
+        const currentUserId = session?.user?.id;
+        if (!currentUserId) {
+          return { success: false, error: "Usuario no autenticado" };
+        }
+        const url = getApiUrl("requests", `chat/${otherUserId}`);
+        const response = await ApiClient.get<ApiResponse>(url, {
+          currentUserId,
+        });
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };
 
-  // ========== CHAT SERVICE ==========
+  // CHAT & CONVERSATIONS SERVICE
   static chat = {
     getUserConversations: async (
       userId: string
     ): Promise<ApiResponse<{ conversations: any[] }>> => {
       try {
-        const response = await ApiClient.get<
-          ApiResponse<{ conversations: any[] }>
-        >(`${API_ENDPOINTS.CHAT}/user/${userId}/conversations`);
+        const url = getApiUrl("conversations", `users/${userId}/conversations`);
+        const response = await ApiClient.get<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
@@ -537,117 +520,81 @@ export class ApiClient {
       conversationId: string
     ): Promise<ApiResponse<{ messages: any[] }>> => {
       try {
-        const response = await ApiClient.get<ApiResponse<{ messages: any[] }>>(
-          `${API_ENDPOINTS.CHAT}/conversation/${conversationId}/messages`
-        );
+        const url = getApiUrl("chat", `rooms/${conversationId}`);
+        const response = await ApiClient.get<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     sendMessage: async (
       conversationId: string,
-      data: {
-        senderId: string;
-        content: string;
-      }
+      data: any
     ): Promise<ApiResponse<{ messageId: string }>> => {
       try {
-        const response = await ApiClient.post<
-          ApiResponse<{ messageId: string }>
-        >(
-          `${API_ENDPOINTS.CHAT}/conversation/${conversationId}/messages`,
-          data
-        );
+        const url = getApiUrl("messages", "");
+        const response = await ApiClient.post<ApiResponse>(url, {
+          ...data,
+          conversationId,
+        });
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };
 
-  // ========== RATINGS SERVICE ==========
+  // RATINGS SERVICE
   static ratings = {
     getUserRating: async (
       userId: string
     ): Promise<ApiResponse<{ rating: number; reviewCount: number }>> => {
       try {
-        const response = await ApiClient.get<
-          ApiResponse<{ rating: number; reviewCount: number }>
-        >(`${API_ENDPOINTS.RATINGS}/user/${userId}`);
+        const url = getApiUrl("ratings", "");
+        const response = await ApiClient.get<ApiResponse>(url, {
+          toUser: userId,
+        });
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
-    submitRating: async (data: {
-      fromUserId: string;
-      toUserId: string;
-      rating: number;
-      review?: string;
-      requestId?: string;
-    }): Promise<ApiResponse> => {
+    submitRating: async (data: any): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.post<ApiResponse>(
-          `${API_ENDPOINTS.RATINGS}`,
-          data
-        );
+        const url = getApiUrl("ratings", "");
+        const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };
 
-  // ========== NOTIFICATIONS SERVICE ==========
+  // NOTIFICATIONS SERVICE
   static notifications = {
     getUserNotifications: async (
       userId: string
     ): Promise<ApiResponse<{ notifications: any[] }>> => {
       try {
-        const response = await ApiClient.get<
-          ApiResponse<{ notifications: any[] }>
-        >(`${API_ENDPOINTS.NOTIFICATIONS}/user/${userId}`);
+        const url = getApiUrl("notifications", "");
+        const response = await ApiClient.get<ApiResponse>(url);
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
 
     markAsRead: async (notificationId: string): Promise<ApiResponse> => {
       try {
-        const response = await ApiClient.put<ApiResponse>(
-          `${API_ENDPOINTS.NOTIFICATIONS}/${notificationId}/read`
-        );
+        const url = getApiUrl("notifications", notificationId);
+        const response = await ApiClient.patch<ApiResponse>(url, {
+          read: true,
+        });
         return response;
-      } catch (error) {
-        return {
-          success: false,
-          error:
-            error instanceof ApiError ? error.message : "Error desconocido",
-        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
     },
   };

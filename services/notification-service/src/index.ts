@@ -18,19 +18,27 @@ const PORT = parseInt(process.env.PORT || "4001");
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"], // 👈 ESPECIFICA EL FRONTEND
-    credentials: true, // 👈 PERMITE LAS COOKIES/TOKENS
+    origin: process.env.CORS_ORIGIN?.split(",") || [
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "http://frontend:3000",
+    ],
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(express.json());
 
+// 👇 RUTAS ALINEADAS CON NGINX 👇
+// NGINX rewrite: /notifications → / (antes de pasar al servicio)
+// Por lo tanto, las rutas deben ser RAÍZ (/)
+
 // routes
-app.post("/notifications", sendNotification);
-app.get("/notifications", getUserNotifications);
-app.patch("/notifications", markAllAsRead);
-app.patch("/notifications/:id", markAsRead);
+app.post("/", sendNotification);
+app.get("/", getUserNotifications);
+app.patch("/", markAllAsRead);
+app.patch("/:id", markAsRead);
 
 // health
 app.get("/health", (_req, res) => {

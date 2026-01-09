@@ -308,3 +308,12 @@ docker compose up --scale chat-service=2
 3. **Variables de Entorno**: Credenciales via environment variables
 4. **TLS**: En producción, usar HTTPS/TLS para comunicación
 
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "**/.env",
+    "**/.env.local",
+    "**/.env.*.local",
+    "docker-compose.yaml"
+  ],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "dist/**",
+        "build/**",
+        ".next/**"
+      ],
+      "cache": true,
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "src/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "outputs": [
+        ".eslintcache"
+      ],
+      "cache": true
+    },
+    "type-check": {
+      "cache": true
+    },
+    "test": {
+      "cache": true,
+      "outputs": [
+        "coverage/**"
+      ]
+    },
+    "db:migrate": {
+      "cache": false,
+      "outputs": [
+        "prisma/migrations/**"
+      ]
+    },
+    "prisma:generate": {
+      "cache": true
+    }
+  }
+}

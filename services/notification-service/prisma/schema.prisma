@@ -11,30 +11,16 @@ generator client {
 model Notification {
   id        String   @id @default(cuid())
   type      String   // e.g. "REQUEST_RECEIVED", "NEW_MESSAGE", "AGREEMENT_ACCEPTED"
-  userId    String   // user who receives the notification
+  userId    String   // user who receives the notification (plain string ref)
   title     String
   message   String
   relatedId String?  // id of related entity (request, message, etc.)
-  senderId  String?  // user who triggered the notification
+  senderId  String?  // user who triggered the notification (plain string ref)
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  // relation fields
-  user   User? @relation("NotificationsReceived", fields: [userId], references: [id])
-  sender User? @relation("NotificationsSent", fields: [senderId], references: [id])
+  // No ORM relations to User model; userId/senderId are plain string references.
+  // To fetch user details, query users-service API directly.
   @@index([userId])
   @@index([createdAt])
-}
-
-// Lightweight User model reference (read-only for notifications)
-// If you need full User model, link to monolith db or sync via events
-model User {
-  id       String @id
-  name     String
-  email    String @unique
-  career   String?
-  
-  // back-relations
-  notificationsReceived Notification[] @relation("NotificationsReceived")
-  notificationsSent     Notification[] @relation("NotificationsSent")
 }

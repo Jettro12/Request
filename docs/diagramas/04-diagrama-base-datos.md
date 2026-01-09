@@ -340,3 +340,12 @@ Request ||--o{ Message : "contiene"
 4. **Enums**: Se usan enums de Prisma para tipos y estados
 5. **Cascadas**: Las relaciones tienen `onDelete: Cascade` para mantener integridad referencial
 
+
+
+
+
+
+
+
+
+

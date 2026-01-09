@@ -1,12 +1,19 @@
 import Link from "next/link";
 import Header from "@/components/Header";
+import SessionDebug from "@/components/SessionDebug";
 
 export default function Home() {
   return (
     <>
       <Header />
+
+      {/* DEBUG DE SESIÓN (puedes quitarlo luego) */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <SessionDebug />
+      </div>
+
       <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-        {/* Hero Section - Mantenemos lo que ya funciona */}
+        {/* Hero Section */}
         <section className="max-w-7xl mx-auto px-4 py-16 text-center">
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
             Conecta con tu{" "}

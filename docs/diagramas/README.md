@@ -137,3 +137,12 @@ Cuando se realicen cambios significativos en la arquitectura:
 
 Para preguntas sobre la arquitectura o los diagramas, consultar el equipo de desarrollo.
 
+
+
+
+
+
+
+
+
+

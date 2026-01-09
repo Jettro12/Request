@@ -15,7 +15,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx",
+    "jsx": "preserve",  // Cambiado de "react-jsx" a "preserve" (mejor para Next.js)
     "incremental": true,
     "plugins": [
       {
@@ -25,17 +25,20 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ]
-    }
+      ],
+      "@/types/*": ["./src/types/*"]  // Agregar alias para tipos
+    },
+    // Agregar estas configuraciones
+    "typeRoots": ["./node_modules/@types", "./src/types"], // Agregar tu carpeta types
+    "types": ["next", "next-auth", "node"] // Incluir tipos de next-auth
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "src/**/*",
-    ".next\\dev/types/**/*.ts",
-    ".next\\dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "src/types/**/*.d.ts"  // Incluir archivos de definición de tipos
   ],
   "exclude": [
     "node_modules"

@@ -1,9 +1,17 @@
-// src/middleware.ts
-export { default } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
+import type { NextRequest } from "next/server";
+
+export default withAuth(
+  function middleware(request: NextRequest) {
+    // You can add custom logic here if needed
+  },
+  {
+    pages: { 
+    },
+  }
+);
 
 export const config = {
-  // Aquí pones las rutas que QUIERES proteger.
-  // El login y register NO van aquí.
   matcher: [
     "/dashboard/:path*",
     "/profile/:path*",

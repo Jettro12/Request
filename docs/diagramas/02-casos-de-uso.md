@@ -271,3 +271,12 @@ UC19 ..> UC26 : <<permite>>
 - **Tiempo real**: Notificaciones push cuando ocurren eventos relevantes
 - **Tipos**: Nuevo mensaje, solicitud recibida, solicitud aceptada, etc.
 
+
+
+
+
+
+
+
+
+

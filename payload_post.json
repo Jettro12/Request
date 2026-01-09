@@ -1,0 +1,10 @@
+{
+  "title": "test post 3",
+  "content": "hello",
+  "type": "PROJECT",
+  "careerSpace": "Ingeniería en Sistemas",
+  "skills": ["Figma"],
+  "authorId": "cmk56lt4f0007qj55so4afsyi",
+  "authorEmail": "autoprof21199@example.com",
+  "authorName": "Auto Prof"
+}

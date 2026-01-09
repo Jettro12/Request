@@ -1,0 +1,21 @@
+{
+  "name": "@request-app/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "lint": "eslint src --max-warnings=0",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "eslint": "^9",
+    "@types/node": "^20"
+  }
+}

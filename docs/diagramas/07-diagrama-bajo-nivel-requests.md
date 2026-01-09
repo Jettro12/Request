@@ -367,3 +367,12 @@ model Request {
 - Transacciones para operaciones atómicas
 - Índices en `fromUserId`, `toUserId`, `status`
 
+
+
+
+
+
+
+
+
+

@@ -1,5 +1,4 @@
 import { ApiClient } from "../api/client";
-import { API_ENDPOINTS } from "../api/config";
 
 export interface LoginCredentials {
   email: string;
@@ -17,24 +16,24 @@ export interface RegisterData {
 
 export const authService = {
   login: async (credentials: LoginCredentials) => {
-    return ApiClient.post<{ user: any; token: string }>(
-      API_ENDPOINTS.AUTH.LOGIN,
-      credentials
-    );
+    // Usamos el método especializado del nuevo ApiClient
+    return ApiClient.auth.login(credentials);
   },
 
   register: async (data: RegisterData) => {
-    return ApiClient.post<{ user: any; token: string }>(
-      API_ENDPOINTS.AUTH.REGISTER,
-      data
-    );
+    return ApiClient.auth.register(data);
   },
 
+  // Nota: En la nueva arquitectura, getCurrentUser suele obtenerse
+  // decodificando el token de la sesión (NextAuth) o consultando usersService.
+  // Si tu backend tiene un endpoint /me, deberías agregarlo a ApiClient.auth
   getCurrentUser: async () => {
-    return ApiClient.get<{ user: any }>(API_ENDPOINTS.AUTH.ME);
+    // Si usas NextAuth, esto a veces es redundante, pero si lo necesitas:
+    // return ApiClient.get<{ user: any }>('/auth/me'); // Usando path relativo
+    return null;
   },
 
   logout: async () => {
-    return ApiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+    return ApiClient.auth.logout();
   },
 };

@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 16, "column": 0}, "map": {"version":3,"sources":["turbopack:///[project]/frontend/src/middleware.ts"],"sourcesContent":["// src/middleware.ts\r\nexport { default } from \"next-auth/middleware\";\r\n\r\nexport const config = {\r\n  // Aquí pones las rutas que QUIERES proteger.\r\n  // El login y register NO van aquí.\r\n  matcher: [\r\n    \"/dashboard/:path*\",\r\n    \"/profile/:path*\",\r\n    \"/chat/:path*\",\r\n    \"/requests/:path*\",\r\n    \"/search/:path*\",\r\n  ],\r\n};\r\n"],"names":[],"mappings":"AAAA,oBAAoB;;;;;AACpB;;AAEO,MAAM,SAAS;IACpB,6CAA6C;IAC7C,mCAAmC;IACnC,SAAS;QACP;QACA;QACA;QACA;QACA;KACD;AACH"}}]
-}

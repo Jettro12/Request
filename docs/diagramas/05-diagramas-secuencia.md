@@ -312,3 +312,12 @@ Frontend -> Usuario: Redirige a chat
 @enduml
 ```
 
+
+
+
+
+
+
+
+
+

@@ -9,15 +9,23 @@ const PORT = parseInt(process.env.PORT || "4006");
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"], // 👈 ESPECIFICA EL FRONTEND
-    credentials: true, // 👈 PERMITE LAS COOKIES/TOKENS
+    origin: process.env.CORS_ORIGIN?.split(",") || [
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "http://frontend:3000",
+    ],
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(express.json());
 
-app.post("/ratings", async (req, res) => {
+// 👇 RUTAS ALINEADAS CON NGINX 👇
+// NGINX rewrite: /ratings → / (antes de pasar al servicio)
+// Por lo tanto, las rutas deben ser RAÍZ (/)
+
+app.post("/", async (req, res) => {
   const { fromUser, toUser, score, comment } = req.body;
   if (!fromUser || !toUser || typeof score !== "number")
     return res.status(400).json({ error: "invalid" });
@@ -31,7 +39,7 @@ app.post("/ratings", async (req, res) => {
   }
 });
 
-app.get("/ratings", async (req, res) => {
+app.get("/", async (req, res) => {
   const toUser = String(req.query.toUser || "");
   const ratings = await prisma.rating.findMany({ where: { toUser } });
   res.json({ ratings });

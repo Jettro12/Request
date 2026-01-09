@@ -1,46 +1,94 @@
-import { Kafka, Producer, Consumer } from "kafkajs";
+import { Kafka, Partitioners } from "kafkajs";
+import dotenv from "dotenv";
 
-const brokers = (process.env.KAFKA_BROKER || "kafka:29092").split(",");
-const clientId = "posts-service";
+dotenv.config();
 
-export const kafka = new Kafka({ clientId, brokers });
-export const producer: Producer = kafka.producer();
-export const consumer: Consumer = kafka.consumer({
-  groupId: "posts-service-group",
+// Configuración de Kafka desde variables de entorno
+const KAFKA_BROKER = process.env.KAFKA_BROKER || "localhost:9092";
+const CLIENT_ID = process.env.KAFKA_CLIENT_ID || "posts-service";
+
+// Crear instancia de Kafka
+export const kafka = new Kafka({
+  clientId: CLIENT_ID,
+  brokers: [KAFKA_BROKER],
+  // Opcional: agregar configuración de reconexión
+  retry: {
+    initialRetryTime: 100,
+    retries: 8,
+  },
 });
 
-export const POSTS_TOPIC = process.env.POSTS_TOPIC || "posts";
+// Producer con LegacyPartitioner para evitar el warning
+export const producer = kafka.producer({
+  createPartitioner: Partitioners.LegacyPartitioner, // ← ESTO ELIMINA EL WARNING
+});
 
-export async function initKafka() {
-  console.log("Connecting to Kafka brokers:", brokers);
-  const admin = kafka.admin();
-  const maxRetries = 8;
-  let attempt = 0;
-  while (attempt < maxRetries) {
-    try {
-      await admin.connect();
-      // ensure topic exists
-      await admin.createTopics({
-        topics: [{ topic: POSTS_TOPIC, numPartitions: 1 }],
-        waitForLeaders: true,
-      });
-      await admin.disconnect();
+// Consumer (opcional, si necesitas consumir eventos)
+export const consumer = kafka.consumer({
+  groupId: `${CLIENT_ID}-group`,
+});
 
-      await producer.connect();
-      await consumer.connect();
-      await consumer.subscribe({ topic: POSTS_TOPIC, fromBeginning: false });
-      console.log("Kafka connected and topic subscribed:", POSTS_TOPIC);
-      return;
-    } catch (err) {
-      attempt++;
-      console.warn(
-        `Kafka init attempt ${attempt} failed: ${err}. Retrying in 2s...`
-      );
-      try {
-        await admin.disconnect();
-      } catch (_) {}
-      await new Promise((r) => setTimeout(r, 2000));
-    }
+// Topics
+export const POSTS_TOPIC = "posts";
+export const USERS_TOPIC = "users"; // Ejemplo adicional
+export const NOTIFICATIONS_TOPIC = "notifications"; // Ejemplo adicional
+
+// Función para conectar el producer
+export async function connectKafkaProducer() {
+  try {
+    await producer.connect();
+    console.log("✅ Kafka Producer connected successfully");
+  } catch (error) {
+    console.error("❌ Error connecting Kafka Producer:", error);
+    // Podrías agregar lógica de reintento aquí
   }
-  throw new Error("Unable to initialize Kafka after multiple attempts");
 }
+
+// Función para conectar el consumer (si lo necesitas)
+export async function connectKafkaConsumer() {
+  try {
+    await consumer.connect();
+    console.log("✅ Kafka Consumer connected successfully");
+  } catch (error) {
+    console.error("❌ Error connecting Kafka Consumer:", error);
+  }
+}
+
+// Función para desconectar todo
+export async function disconnectKafka() {
+  try {
+    await producer.disconnect();
+    console.log("✅ Kafka Producer disconnected");
+  } catch (error) {
+    console.error("❌ Error disconnecting Kafka Producer:", error);
+  }
+
+  try {
+    await consumer.disconnect();
+    console.log("✅ Kafka Consumer disconnected");
+  } catch (error) {
+    console.error("❌ Error disconnecting Kafka Consumer:", error);
+  }
+}
+
+// Función para publicar mensajes de manera segura
+export async function sendKafkaMessage(topic: string, key: string, value: any) {
+  try {
+    await producer.send({
+      topic,
+      messages: [
+        {
+          key,
+          value: JSON.stringify(value),
+        },
+      ],
+    });
+    console.log(`📨 Message sent to topic ${topic} with key ${key}`);
+  } catch (error) {
+    console.error(`❌ Error sending message to Kafka topic ${topic}:`, error);
+    throw error;
+  }
+}
+
+// Inicialización automática al importar (opcional)
+// connectKafkaProducer();

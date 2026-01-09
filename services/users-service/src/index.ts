@@ -1,128 +1,76 @@
-import express, { Request, Response } from "express";
+import { eventConsumer } from "./events/consumer";
+import UserService from "./services/userService";
+import express from "express";
 import cors from "cors";
-import { PrismaClient } from "@prisma/client";
+import dotenv from "dotenv";
+import { prisma } from "./prisma";
+import {
+  getUserProfile,
+  searchUsers,
+  updateProfile,
+  createProfile,
+  getUsersByCareer,
+} from "./controllers/usersController";
 
+dotenv.config();
+
+const PORT = parseInt(process.env.PORT || "4007");
 const app = express();
-const prisma = new PrismaClient();
-const PORT = process.env.PORT || 4007;
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"], // Permite ambos orígenes
-    credentials: true, // ¡Esto es lo importante! Permite cookies/headers
+    origin: process.env.CORS_ORIGIN?.split(",") || [
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "http://frontend:3000",
+    ],
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
 app.use(express.json());
 
-// Health check
-app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "OK", service: "users-service" });
-});
+// Rutas
+app.get("/health", (req, res) =>
+  res.json({ status: "ok", service: "users-service" })
+);
 
-// Obtener todos los usuarios
-app.get("/users", async (req: Request, res: Response) => {
+app.get("/search", searchUsers);
+app.get("/career/:career", getUsersByCareer);
+app.post("/profile", createProfile);
+app.put("/:id/profile", updateProfile);
+app.get("/:id", getUserProfile);
+
+async function start() {
   try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        role: true,
-        createdAt: true,
-      },
-    });
-    res.json(users);
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+    await prisma.$connect();
+    console.log("✅ Connected to usersdb");
 
-// Obtener usuario por ID
-app.get("/users/:id", async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        role: true,
-        createdAt: true,
-      },
-    });
+    // Crear instancia de UserService
+    const userService = new UserService(prisma);
+    console.log("✅ UserService initialized");
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    // Iniciar RabbitMQ consumer si está disponible
+    if (eventConsumer && typeof eventConsumer.startConsuming === "function") {
+      try {
+        await eventConsumer.startConsuming(userService);
+        console.log("✅ RabbitMQ consumer started");
+      } catch (error: any) {
+        console.log("⚠️  RabbitMQ consumer failed:", error.message);
+      }
+    } else {
+      console.log("⚠️  Running without RabbitMQ event sync");
     }
 
-    res.json(user);
-  } catch (error) {
-    console.error("Error fetching user:", error);
-    res.status(500).json({ error: "Internal server error" });
+    app.listen(PORT, "0.0.0.0", () =>
+      console.log(`🚀 Users service listening on port ${PORT}`)
+    );
+  } catch (error: any) {
+    console.error("❌ Failed to start users-service:", error);
+    process.exit(1);
   }
-});
+}
 
-// Actualizar usuario
-app.put("/users/:id", async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { name, image } = req.body;
-
-    const user = await prisma.user.update({
-      where: { id },
-      data: { name, image },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-      },
-    });
-
-    res.json(user);
-  } catch (error) {
-    console.error("Error updating user:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Obtener conversaciones (SQL corregido y limpio)
-app.get("/users/:userId/conversations", async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-
-    // Usamos backticks estándar. Si falla, es por caracteres invisibles al copiar.
-    const conversations = await prisma.$queryRaw`
-      SELECT DISTINCT ON (contact_id) 
-        m.id,
-        m.content,
-        m.created_at,
-        m.is_read,
-        m.sender_id,
-        m.receiver_id,
-        CASE 
-          WHEN m.sender_id = ${userId} THEN m.receiver_id
-          ELSE m.sender_id
-        END as contact_id
-      FROM messages m
-      WHERE m.sender_id = ${userId} OR m.receiver_id = ${userId}
-      ORDER BY contact_id, m.created_at DESC
-    `;
-
-    res.json(conversations);
-  } catch (error) {
-    console.error("Error fetching conversations:", error);
-    // Devolvemos array vacío si falla la base de datos (ej. tabla no existe aún)
-    res.json([]);
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Users service running on port ${PORT}`);
-});
+start();

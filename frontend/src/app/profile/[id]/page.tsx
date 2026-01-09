@@ -4,11 +4,8 @@ import Header from "@/components/Header";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
-// Importamos User de aquí para usar los tipos correctos
-import { ApiClient, User } from "../../../lib/api/client";
+import { ApiClient, User } from "@/lib/api/client";
 import RequestModal from "@/components/RequestModal";
-
-// BORRÉ LA INTERFAZ 'UserProfile' MANUAL PARA EVITAR CONFLICTOS
 
 export default function ProfilePage() {
   const { data: session } = useSession();
@@ -46,15 +43,27 @@ export default function ProfilePage() {
     }
   }, [userId]);
 
+  // Valores seguros (si user existe)
+  const safeRating = user?.rating || 0;
+  const safeReviewCount = user?.reviewCount || 0;
+  const safeSkills = user?.skills || [];
+  const safeInterests = user?.interests || [];
+  const safeCareer = user?.career || "Sin carrera especificada";
+  const safeSemester = user?.semester || "?";
+  const safeBio = user?.bio || "";
+  const safeCreatedAt = user?.createdAt ? new Date(user.createdAt) : new Date();
+  const safeName = user?.name || "Usuario";
+  const safeId = user?.id || "";
+
   // Función para renderizar estrellas
-  const renderStars = (rating: number) => {
+  const renderStars = (rating: number = 0) => {
     return (
       <div className="flex items-center space-x-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <span
             key={star}
             className={`text-xl ${
-              star <= Math.round(rating || 0)
+              star <= Math.round(rating)
                 ? "text-yellow-400"
                 : "text-gray-300"
             }`}
@@ -109,7 +118,7 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
                 <span className="text-2xl font-bold text-blue-600">
-                  {user.name.charAt(0)}
+                  {safeName.charAt(0)}
                 </span>
               </div>
 
@@ -118,33 +127,33 @@ export default function ProfilePage() {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h1 className="text-3xl font-bold text-gray-900">
-                      {user.name}
+                      {safeName}
                     </h1>
                     <p className="text-gray-600 text-lg">
-                      {user.career} • {user.semester}° Semestre
+                      {safeCareer} • {safeSemester}° Semestre
                     </p>
-                    {user.bio && (
-                      <p className="text-gray-700 mt-3 max-w-2xl">{user.bio}</p>
+                    {safeBio && (
+                      <p className="text-gray-700 mt-3 max-w-2xl">{safeBio}</p>
                     )}
                   </div>
 
-                  {/* Rating Mejorado */}
+                  {/* Rating Mejorado - CORREGIDO */}
                   <div className="flex flex-col items-end space-y-2">
                     <div className="flex items-center space-x-3">
-                      {renderStars(user.rating || 0)}
+                      {renderStars(safeRating)}
                       <div className="text-right">
                         <div className="text-2xl font-bold text-gray-900">
-                          {user.rating ? user.rating.toFixed(1) : "Nuevo"}
+                          {safeRating > 0 ? safeRating.toFixed(1) : "Nuevo"}
                         </div>
-                        {user.reviewCount > 0 && (
+                        {safeReviewCount > 0 && (
                           <div className="text-sm text-gray-600">
-                            {user.reviewCount}{" "}
-                            {user.reviewCount === 1 ? "reseña" : "reseñas"}
+                            {safeReviewCount}{" "}
+                            {safeReviewCount === 1 ? "reseña" : "reseñas"}
                           </div>
                         )}
                       </div>
                     </div>
-                    {!user.rating && (
+                    {safeRating === 0 && (
                       <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                         Sin calificaciones aún
                       </span>
@@ -156,7 +165,7 @@ export default function ProfilePage() {
                 <div className="flex space-x-6 text-sm text-gray-600">
                   <span>
                     📅 Miembro desde{" "}
-                    {new Date(user.createdAt).toLocaleDateString("es-ES")}
+                    {safeCreatedAt.toLocaleDateString("es-ES")}
                   </span>
                 </div>
               </div>
@@ -167,13 +176,13 @@ export default function ProfilePage() {
             {/* Columna Izquierda - Habilidades */}
             <div className="md:col-span-2 space-y-6">
               {/* Habilidades */}
-              {user.skills && user.skills.length > 0 && (
+              {safeSkills.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Habilidades
                   </h2>
                   <div className="flex flex-wrap gap-2">
-                    {user.skills.map((skill, index) => (
+                    {safeSkills.map((skill, index) => (
                       <span
                         key={index}
                         className="bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium"
@@ -186,13 +195,13 @@ export default function ProfilePage() {
               )}
 
               {/* Intereses */}
-              {user.interests && user.interests.length > 0 && (
+              {safeInterests.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Intereses
                   </h2>
                   <div className="flex flex-wrap gap-2">
-                    {user.interests.map((interest, index) => (
+                    {safeInterests.map((interest, index) => (
                       <span
                         key={index}
                         className="bg-purple-100 text-purple-700 px-3 py-2 rounded-lg text-sm font-medium"
@@ -215,12 +224,12 @@ export default function ProfilePage() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600">Carrera</p>
-                    <p className="font-medium text-gray-900">{user.career}</p>
+                    <p className="font-medium text-gray-900">{safeCareer}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Semestre</p>
                     <p className="font-medium text-gray-900">
-                      {user.semester}° Semestre
+                      {safeSemester}° Semestre
                     </p>
                   </div>
 
@@ -228,17 +237,17 @@ export default function ProfilePage() {
                   <div>
                     <p className="text-sm text-gray-600 mb-2">Calificación</p>
                     <div className="flex items-center space-x-3">
-                      {renderStars(user.rating || 0)}
+                      {renderStars(safeRating)}
                       <div>
                         <p className="font-medium text-gray-900">
-                          {user.rating
-                            ? user.rating.toFixed(1) + " / 5.0"
+                          {safeRating > 0
+                            ? safeRating.toFixed(1) + " / 5.0"
                             : "Sin calificaciones"}
                         </p>
-                        {user.reviewCount > 0 && (
+                        {safeReviewCount > 0 && (
                           <p className="text-sm text-gray-600">
-                            Basado en {user.reviewCount}{" "}
-                            {user.reviewCount === 1
+                            Basado en {safeReviewCount}{" "}
+                            {safeReviewCount === 1
                               ? "colaboración"
                               : "colaboraciones"}
                           </p>
@@ -250,7 +259,7 @@ export default function ProfilePage() {
               </div>
 
               {/* Stats de Rating */}
-              {user.rating && user.reviewCount > 0 && (
+              {safeRating > 0 && safeReviewCount > 0 && (
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Estadísticas
@@ -258,7 +267,7 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-blue-600">
-                        {user.reviewCount}
+                        {safeReviewCount}
                       </div>
                       <div className="text-sm text-gray-600">
                         Colaboraciones
@@ -266,7 +275,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">
-                        {user.rating.toFixed(1)}
+                        {safeRating.toFixed(1)}
                       </div>
                       <div className="text-sm text-gray-600">
                         Rating Promedio
@@ -278,7 +287,7 @@ export default function ProfilePage() {
 
               {/* Botones de Acción */}
               {/* Solo mostramos el botón si NO es el perfil del usuario logueado */}
-              {session?.user?.id !== user.id && (
+              {session?.user?.id !== safeId && (
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <div className="flex space-x-3">
                     <button
@@ -296,8 +305,8 @@ export default function ProfilePage() {
           {/* Modal para enviar Request */}
           {showRequestModal && user && (
             <RequestModal
-              receiverId={user.id}
-              receiverName={user.name}
+              receiverId={safeId}
+              receiverName={safeName}
               onClose={() => setShowRequestModal(false)}
               onSuccess={() => {
                 setShowRequestModal(false);

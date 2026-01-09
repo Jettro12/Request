@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ApiClient } from "@/lib/api/client";
 
 interface CompleteRequestModalProps {
   requestId: string;
@@ -32,21 +33,14 @@ export default function CompleteRequestModal({
       setIsSubmitting(true);
       setError("");
 
-      const response = await fetch(`/api/requests/${requestId}/complete`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          rating,
-          review: review.trim(),
-        }),
+      // CORRECCIÓN: Usar ApiClient en lugar de fetch directo
+      const result = await ApiClient.requests.completeRequest(requestId, {
+        rating,
+        review: review.trim(),
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        alert(result.message);
+      if (result.success) {
+        alert("Acuerdo completado exitosamente");
         onSuccess();
       } else {
         setError(result.error || "Error al completar el acuerdo");

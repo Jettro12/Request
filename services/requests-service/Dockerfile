@@ -1,17 +1,27 @@
-FROM node:20-bullseye-slim
-
+FROM node:18-bullseye-slim
 WORKDIR /usr/src/app
 
-COPY package.json package-lock.json* npm-shrinkwrap.json* ./
+# Configurar npm para mejor manejo de red
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000
 
-RUN npm ci || npm install
+# Copiar archivos de configuración y dependencias
+COPY package*.json ./
+COPY tsconfig.json ./
 
+# Instalar dependencias con retry automático
+RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
+
+# Copiar esquema de Prisma antes de generar el cliente
+COPY prisma ./prisma
+
+# Generar cliente de Prisma
+RUN npx prisma generate
+ 
+# Copiar el resto del código
 COPY . .
 
-# Don't run `npm run build` during image build in dev environment.
-# We'll run the dev server (`npm run dev`) at container start which uses
-# ts-node-dev with --transpile-only to avoid tsc type errors blocking startup.
-
 EXPOSE 4003
-
 CMD ["npm", "start"]

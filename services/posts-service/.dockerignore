@@ -7,3 +7,9 @@ dist
 .env
 .env.local
 .DS_Store
+.next
+dist
+build
+Dockerfile
+docker-compose.yml
+

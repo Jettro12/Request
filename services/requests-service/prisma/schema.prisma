@@ -1,4 +1,7 @@
-// prisma/schema.prisma - requests-service minimal schema
+// prisma/schema.prisma - requests-service
+// User data is managed by users-service (shared authdb).
+// This service manages Request and Message records with userId references (no relations).
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -10,59 +13,39 @@ generator client {
 
 model Request {
   id                    String   @id @default(cuid())
-  type                  String   // e.g. "COLLABORATION", "TUTORING"
+  type                  String
   message               String   @db.Text
-  status                String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, COMPLETED
+  status                String   @default("PENDING")
   fromUserId            String
   toUserId              String
+  
+  // AGREGAR ESTAS RELACIONES (simuladas)
+  // fromUser    User?    @relation(fields: [fromUserId], references: [id])
+  // toUser      User?    @relation(fields: [toUserId], references: [id])
+  
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   completedAt           DateTime?
-
-  fromUserRating        Int?     // 1-5
+  fromUserRating        Int?
   fromUserReview        String?
-  toUserRating          Int?     // 1-5
+  toUserRating          Int?
   toUserReview          String?
-
   messages              Message[]
-
-  // relation fields used by application code
-  fromUser             User?    @relation("RequestsFrom", fields: [fromUserId], references: [id])
-  toUser               User?    @relation("RequestsTo", fields: [toUserId], references: [id])
 
   @@index([fromUserId])
   @@index([toUserId])
   @@index([status])
 }
-
 model Message {
   id         String   @id @default(cuid())
   content    String   @db.Text
-  senderId   String
-  receiverId String
+  senderId   String   // Reference to shared users-service
+  receiverId String   // Reference to shared users-service
   requestId  String
   createdAt  DateTime @default(now())
 
   request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
-  // relation fields for sender/receiver
-  sender   User? @relation("MessagesSent", fields: [senderId], references: [id])
-  receiver User? @relation("MessagesReceived", fields: [receiverId], references: [id])
-
   @@index([requestId])
   @@index([senderId])
-}
-
-model User {
-  id       String @id
-  name     String
-  email    String @unique
-  career   String?
-  semester Int?
-  rating   Float  @default(0)
-  // back-relations
-  requestsFrom  Request[] @relation("RequestsFrom")
-  requestsTo    Request[] @relation("RequestsTo")
-  messagesSent  Message[] @relation("MessagesSent")
-  messagesRecvd Message[] @relation("MessagesReceived")
 }

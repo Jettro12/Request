@@ -1,4 +1,7 @@
-// prisma/schema.prisma - posts-service minimal schema
+// prisma/schema.prisma - posts-service
+// User data is managed by users-service (shared authdb).
+// This service only manages Post records and authorId references.
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -12,30 +15,20 @@ model Post {
   id          String   @id @default(cuid())
   title       String
   content     String   @db.Text
-  type        String   // e.g. "OFFERING", "REQUESTING"
-  careerSpace String   // e.g. "Ingeniería en Sistemas"
+  type        String
+  careerSpace String
   skills      String[] @default([])
-  authorId    String   // Foreign key to User
+  authorId    String
+  
+  // AGREGAR ESTA RELACIÓN (pero será simulada)
+  // author      User?    @relation(fields: [authorId], references: [id])
+  // Comentada porque User no está definido en este schema
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  // relation field so Prisma `include: { author: { select: ... }}` works
-  author      User?    @relation("UserPosts", fields: [authorId], references: [id])
 
   @@index([authorId])
   @@index([careerSpace])
   @@index([createdAt])
-}
-
-model User {
-  id       String @id
-  name     String
-  email    String @unique
-  career   String?
-  semester Int?
-  rating   Float  @default(0)
-  skills   String[] @default([])
-  
-  // back-relation
-  posts    Post[]  @relation("UserPosts")
+  @@map("posts")
 }

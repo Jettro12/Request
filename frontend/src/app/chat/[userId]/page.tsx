@@ -69,11 +69,8 @@ export default function ChatConversationPage() {
           setOtherUser(userResult.data.user);
         }
 
-        // CORRECCIÓN 3: Manejo de requests.getByChat
-        // ¡OJO! Este método NO existe en tu ApiClient original.
-        // Asegúrate de agregarlo en client.ts o esto fallará.
-        // Aquí asumo que lo agregaste y corrijo el acceso a .data
-        const requestResult = await (ApiClient.requests as any).getByChat(
+        // Obtener request por chat
+        const requestResult = await ApiClient.requests.getByChat(
           otherUserId
         );
 
@@ -135,12 +132,27 @@ export default function ChatConversationPage() {
       setIsSending(true);
       console.log("🔵 [FRONTEND-AGREEMENT] Enviando acción:", action);
 
-      // CORRECCIÓN 5: Método sendAgreement no existe en ApiClient original.
-      // Debes agregarlo a client.ts. Usamos 'any' temporalmente para evitar error de TS.
-      const result = await (ApiClient.requests as any).sendAgreement(
-        requestInfo.id,
-        action
-      );
+      // Manejar acuerdo usando completeRequest o updateRequestStatus
+      let result;
+      if (action === "propose") {
+        // Proponer acuerdo = usar completeRequest con rating 0 (solo propuesta)
+        result = await ApiClient.requests.completeRequest(requestInfo.id, {
+          rating: 0,
+          review: "Propuesta de acuerdo enviada",
+        });
+      } else if (action === "accept") {
+        // Aceptar acuerdo = actualizar status si es necesario o usar completeRequest
+        result = await ApiClient.requests.completeRequest(requestInfo.id, {
+          rating: 5, // Rating por defecto al aceptar
+          review: "Acuerdo aceptado",
+        });
+      } else {
+        // Rechazar = usar updateRequestStatus a REJECTED
+        result = await ApiClient.requests.updateRequestStatus(
+          requestInfo.id,
+          "REJECTED"
+        );
+      }
 
       console.log("🔵 [FRONTEND-AGREEMENT] Respuesta:", result);
 
@@ -153,7 +165,7 @@ export default function ChatConversationPage() {
       }
 
       // Recargar info del request
-      const requestResult = await (ApiClient.requests as any).getByChat(
+      const requestResult = await ApiClient.requests.getByChat(
         otherUserId
       );
       if (requestResult.success && requestResult.data) {
@@ -186,8 +198,8 @@ export default function ChatConversationPage() {
   const handleCompleteSuccess = () => {
     setShowCompleteModal(false);
 
-    // CORRECCIÓN 6: Corregir promesa y acceso a data
-    (ApiClient.requests as any)
+    // Recargar info del request después de completar
+    ApiClient.requests
       .getByChat(otherUserId)
       .then((result: any) => {
         if (result.success && result.data) {

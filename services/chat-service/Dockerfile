@@ -1,8 +1,21 @@
-﻿FROM node:20-bullseye-slim
+﻿FROM node:18-bullseye-slim
 WORKDIR /usr/src/app
-COPY package*.json ./
-RUN npm install
-COPY . .
-EXPOSE 4010
-CMD ["npm", "run", "dev"]
 
+# Configurar npm para mejor manejo de red
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000
+
+# Copiar archivos de configuración y dependencias
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Instalar dependencias con retry automático
+RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
+
+# Copiar el resto del código
+COPY . .
+
+EXPOSE 4010
+CMD ["npm", "start"]

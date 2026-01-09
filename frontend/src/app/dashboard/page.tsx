@@ -4,23 +4,43 @@ import Header from "@/components/Header";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-// IMPORTANTE: Importamos las interfaces desde el cliente para no redefinirlas
-import { ApiClient, Post, User } from "../../lib/api/client";
+import { useRouter } from "next/navigation";
+import { ApiClient, type Post, type User } from "@/lib/api/client";
 
-// BORRÉ LAS INTERFACES LOCALES 'Post' y 'User' PARA EVITAR CONFLICTOS
+// Tipos para las props del componente
+interface CareerSpace {
+  name: string;
+  emoji?: string;
+}
 
-const careerSpaces = [
-  "Todos los espacios",
-  "Ingeniería en Sistemas",
-  "Psicología",
-  "Administración",
-  "Medicina",
-  "Derecho",
-  "Diseño Gráfico",
-  "Artes",
+interface PostType {
+  label: string;
+  color: string;
+}
+
+// Tipo simplificado para autor de posts (para evitar errores de tipos)
+interface PostAuthor {
+  id: string;
+  name: string;
+  career?: string;
+  semester?: number;
+  rating?: number;
+  skills?: string[];
+}
+
+// Constantes
+const careerSpaces: CareerSpace[] = [
+  { name: "Todos los espacios", emoji: "🌍" },
+  { name: "Ingeniería en Sistemas", emoji: "💻" },
+  { name: "Psicología", emoji: "🧠" },
+  { name: "Administración", emoji: "📊" },
+  { name: "Medicina", emoji: "⚕️" },
+  { name: "Derecho", emoji: "⚖️" },
+  { name: "Diseño Gráfico", emoji: "🎨" },
+  { name: "Artes", emoji: "🎭" },
 ];
 
-const postTypes = {
+const postTypes: Record<string, PostType> = {
   PROJECT: { label: "Proyecto", color: "bg-blue-100 text-blue-800" },
   JOB: { label: "Empleo", color: "bg-green-100 text-green-800" },
   COLLABORATION: {
@@ -34,156 +54,267 @@ const postTypes = {
   ANNOUNCEMENT: { label: "Anuncio", color: "bg-yellow-100 text-yellow-800" },
 };
 
+// Componentes auxiliares
+const RatingStars = ({ rating = 0 }: { rating?: number }) => {
+  const roundedRating = Math.round(rating);
+  return (
+    <div className="flex items-center space-x-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={`text-sm ${
+            star <= roundedRating ? "text-yellow-400" : "text-gray-300"
+          }`}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+};
+
+const LoadingSpinner = () => (
+  <div className="text-center py-12">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+    <p className="text-gray-600 mt-4">Cargando...</p>
+  </div>
+);
+
+const EmptyState = ({
+  emoji = "📭",
+  title,
+  message,
+}: {
+  emoji?: string;
+  title: string;
+  message: string;
+}) => (
+  <div className="text-center py-12 bg-white rounded-xl">
+    <div className="text-6xl mb-4">{emoji}</div>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
+    <p className="text-gray-600">{message}</p>
+  </div>
+);
+
+// UserAvatar actualizado para aceptar tanto User como PostAuthor
+const UserAvatar = ({
+  user,
+  size = 10,
+}: {
+  user: User | PostAuthor;
+  size?: number;
+}) => (
+  <Link href={`/profile/${user.id}`}>
+    <div
+      className={`w-${size} h-${size} bg-gray-200 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-300 transition-colors`}
+    >
+      <span className="font-semibold text-gray-700">
+        {user.name?.charAt(0) || "U"}
+      </span>
+    </div>
+  </Link>
+);
+
+// Componente principal
 export default function Dashboard() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // Estados
   const [selectedCareer, setSelectedCareer] = useState("Todos los espacios");
   const [activeTab, setActiveTab] = useState("all");
-  const [view, setView] = useState("posts");
-
-  // Usamos los tipos importados
+  const [view, setView] = useState<"posts" | "people">("posts");
   const [posts, setPosts] = useState<Post[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [postsError, setPostsError] = useState("");
   const [people, setPeople] = useState<User[]>([]);
   const [isLoadingPeople, setIsLoadingPeople] = useState(false);
   const [peopleError, setPeopleError] = useState("");
   const [peopleCount, setPeopleCount] = useState(0);
 
-  // Cargar publicaciones
+  // Redirigir si no está autenticado
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  // Cargar publicaciones - VERSIÓN CORREGIDA
   useEffect(() => {
     const loadPosts = async () => {
-      try {
-        setIsLoading(true);
+      if (view !== "posts") return;
 
-        const result = await ApiClient.posts.getPosts({
-          careerSpace:
-            selectedCareer !== "Todos los espacios"
-              ? selectedCareer
-              : undefined,
-          type: activeTab !== "all" ? activeTab : undefined,
+      try {
+        setIsLoadingPosts(true);
+        setPostsError("");
+
+        // PREPARAR PARÁMETROS CORRECTAMENTE - SIN undefined
+        const params: any = {
           page: 1,
           limit: 20,
-        });
+        };
 
-        // CORRECCIÓN 1: Accedemos a result.data.posts
-        if (result.success && result.data) {
-          setPosts(result.data.posts || []);
+        // Solo agregar careerSpace si tiene un valor válido (no "Todos los espacios")
+        if (selectedCareer && selectedCareer !== "Todos los espacios") {
+          params.careerSpace = selectedCareer;
+        }
+
+        // Solo agregar type si tiene un valor válido (no "all")
+        if (activeTab && activeTab !== "all") {
+          // El backend espera PROJECT, JOB, etc. en mayúsculas
+          params.type = activeTab;
+        }
+
+        console.log("📡 Dashboard: Cargando posts con parámetros:", params);
+
+        const result = await ApiClient.posts.getPosts(params);
+
+        if (result.success && result.data?.posts) {
+          setPosts(result.data.posts);
         } else {
-          setError(result.error || "Error al cargar publicaciones");
+          setPostsError(result.error || "Error al cargar publicaciones");
+          setPosts([]);
         }
       } catch (err) {
-        setError("Error de conexión");
         console.error("Error cargando posts:", err);
+        setPostsError(
+          "Error de conexión con el servidor de posts (puerto 4002)"
+        );
+        setPosts([]);
       } finally {
-        setIsLoading(false);
+        setIsLoadingPosts(false);
       }
     };
 
     loadPosts();
-  }, [selectedCareer, activeTab]);
+  }, [selectedCareer, activeTab, view]);
 
-  // Cargar personas
+  // Cargar personas - VERSIÓN CORREGIDA
   useEffect(() => {
+    const loadPeople = async () => {
+      if (view !== "people") return;
+
+      try {
+        setIsLoadingPeople(true);
+        setPeopleError("");
+
+        const params: any = {
+          page: 1,
+          limit: 20,
+        };
+
+        // Solo agregar carrera si no es "Todos los espacios"
+        if (selectedCareer && selectedCareer !== "Todos los espacios") {
+          params.career = selectedCareer;
+        }
+
+        console.log("👥 Dashboard: Cargando personas con parámetros:", params);
+
+        const result = await ApiClient.users.searchUsers(params);
+
+        if (result.success && result.data) {
+          setPeople(result.data.users || []);
+          setPeopleCount(result.data.total || 0);
+        } else {
+          setPeopleError(result.error || "Error al cargar personas");
+          setPeople([]);
+          setPeopleCount(0);
+        }
+      } catch (err) {
+        console.error("Error cargando personas:", err);
+        setPeopleError("Error de conexión con el servidor de usuarios");
+        setPeople([]);
+        setPeopleCount(0);
+      } finally {
+        setIsLoadingPeople(false);
+      }
+    };
+
     if (view === "people") {
       loadPeople();
     }
   }, [selectedCareer, view]);
 
-  // Función loadPeople
-  const loadPeople = async () => {
-    try {
-      setIsLoadingPeople(true);
-      setPeopleError("");
-
-      const result = await ApiClient.users.searchUsers({
-        query: "",
-        career: selectedCareer !== "Todos los espacios" ? selectedCareer : "",
-        page: 1,
-        limit: 20,
-      });
-
-      // CORRECCIÓN 2: Accedemos a result.data.users y result.data.total
-      if (result.success && result.data) {
-        setPeople(result.data.users || []);
-        setPeopleCount(result.data.total || 0);
-      } else {
-        setPeopleError(result.error || "Error al cargar personas");
-      }
-    } catch (err) {
-      setPeopleError("Error de conexión");
-    } finally {
-      setIsLoadingPeople(false);
-    }
-  };
-
-  // Función para renderizar estrellas
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex items-center space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <span
-            key={star}
-            className={`text-sm ${
-              star <= Math.round(rating || 0)
-                ? "text-yellow-400"
-                : "text-gray-300"
-            }`}
-          >
-            ★
-          </span>
-        ))}
-      </div>
-    );
-  };
-
-  if (!session) {
+  // Si está cargando la sesión
+  if (status === "loading") {
     return (
       <>
         <Header />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              No has iniciado sesión
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </>
+    );
+  }
+  // Si no hay sesión después de cargar
+  if (status !== "authenticated") {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center max-w-md p-8 bg-white rounded-xl shadow-sm">
+            <div className="text-6xl mb-4">🔒</div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Acceso restringido
             </h1>
-            <p className="text-gray-600 mt-2">
-              Por favor inicia sesión para ver el dashboard
+            <p className="text-gray-600 mb-6">
+              Debes iniciar sesión para acceder al dashboard
             </p>
+            <Link
+              href="/login"
+              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium"
+            >
+              Iniciar Sesión
+            </Link>
           </div>
         </div>
       </>
     );
   }
 
+  // Renderizar contenido principal
   return (
     <>
       <Header />
       <main className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header del Dashboard */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Hola, {session?.user?.name} 👋
+              Hola, {session.user?.name || "Usuario"} 👋
             </h1>
             <p className="text-gray-600">
               Descubre oportunidades y conecta con tu comunidad universitaria
             </p>
-            <div className="mt-2 text-sm text-gray-500">
-              {session?.user?.career} • {session?.user?.semester}° Semestre
+            <div className="mt-2 text-sm text-gray-500 flex items-center space-x-2">
+              <span>{session.user?.career || "Carrera no especificada"}</span>
+              <span>•</span>
+              <span>{session.user?.semester || "?"}° Semestre</span>
+              {session.user?.rating !== undefined && (
+                <>
+                  <span>•</span>
+                  <div className="flex items-center">
+                    <RatingStars rating={session.user.rating} />
+                    <span className="ml-1">
+                      ({session.user.rating.toFixed(1)})
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-4 gap-8">
+          <div className="grid lg:grid-cols-4 gap-6 lg:gap-8">
             {/* Sidebar - Filtros */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm p-6 sticky top-8">
+              <div className="bg-white rounded-xl shadow-sm p-6 sticky top-8 space-y-6">
                 {/* Selector de Vista */}
-                <div className="mb-6">
+                <div>
                   <h3 className="font-semibold text-gray-900 mb-3">Ver</h3>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setView("posts")}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         view === "posts"
                           ? "bg-blue-600 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -193,7 +324,7 @@ export default function Dashboard() {
                     </button>
                     <button
                       onClick={() => setView("people")}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         view === "people"
                           ? "bg-blue-600 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -205,37 +336,38 @@ export default function Dashboard() {
                 </div>
 
                 {/* Filtro por Carrera */}
-                <div className="mb-6">
+                <div>
                   <h3 className="font-semibold text-gray-900 mb-3">
                     Espacios de Carrera
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                     {careerSpaces.map((career) => (
                       <button
-                        key={career}
-                        onClick={() => setSelectedCareer(career)}
-                        className={`block w-full text-left px-3 py-2 rounded-lg text-sm ${
-                          selectedCareer === career
+                        key={career.name}
+                        onClick={() => setSelectedCareer(career.name)}
+                        className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2 ${
+                          selectedCareer === career.name
                             ? "bg-blue-100 text-blue-700 font-medium"
                             : "text-gray-600 hover:bg-gray-100"
                         }`}
                       >
-                        {career}
+                        {career.emoji && <span>{career.emoji}</span>}
+                        <span className="truncate">{career.name}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Filtro por Tipo */}
+                {/* Filtro por Tipo de Publicación */}
                 {view === "posts" && (
-                  <div className="mb-6">
+                  <div>
                     <h3 className="font-semibold text-gray-900 mb-3">
                       Tipo de Publicación
                     </h3>
                     <div className="space-y-2">
                       <button
                         onClick={() => setActiveTab("all")}
-                        className={`block w-full text-left px-3 py-2 rounded-lg text-sm ${
+                        className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                           activeTab === "all"
                             ? "bg-blue-100 text-blue-700 font-medium"
                             : "text-gray-600 hover:bg-gray-100"
@@ -246,9 +378,9 @@ export default function Dashboard() {
                       {Object.entries(postTypes).map(([key, { label }]) => (
                         <button
                           key={key}
-                          onClick={() => setActiveTab(key.toLowerCase())}
-                          className={`block w-full text-left px-3 py-2 rounded-lg text-sm ${
-                            activeTab === key.toLowerCase()
+                          onClick={() => setActiveTab(key)} // Usar key directamente (PROJECT, JOB, etc.)
+                          className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                            activeTab === key
                               ? "bg-blue-100 text-blue-700 font-medium"
                               : "text-gray-600 hover:bg-gray-100"
                           }`}
@@ -262,8 +394,8 @@ export default function Dashboard() {
 
                 {/* Botón Nueva Publicación */}
                 <Link
-                  href="/posts/new"
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium text-center block"
+                  href="/posts"
+                  className="block w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium text-center transition-colors"
                 >
                   + Nueva Publicación
                 </Link>
@@ -281,10 +413,12 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">
-                        Publicaciones activas
+                        {view === "posts"
+                          ? "Publicaciones activas"
+                          : "Oportunidades activas"}
                       </p>
                       <p className="text-xl font-bold text-gray-900">
-                        {posts.length}
+                        {view === "posts" ? posts.length : peopleCount}
                       </p>
                     </div>
                   </div>
@@ -298,7 +432,7 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-600">
                         {view === "posts"
                           ? "Personas en este espacio"
-                          : "Oportunidades activas"}
+                          : "Personas conectadas"}
                       </p>
                       <p className="text-xl font-bold text-gray-900">
                         {view === "posts" ? peopleCount : posts.length}
@@ -308,322 +442,338 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Vista de Publicaciones */}
-              {view === "posts" && (
-                <div className="space-y-6">
-                  {isLoading ? (
-                    <div className="text-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                      <p className="text-gray-600 mt-4">
-                        Cargando publicaciones...
-                      </p>
-                    </div>
-                  ) : error ? (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                      {error}
-                    </div>
-                  ) : posts.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="text-6xl mb-4">📭</div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                        No hay publicaciones aún
-                      </h3>
-                      <p className="text-gray-600">
-                        Sé el primero en crear una publicación en este espacio.
-                      </p>
-                    </div>
-                  ) : (
-                    posts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow"
-                      >
-                        {/* Header de la Publicación */}
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex items-center space-x-3">
-                            <Link href={`/profile/${post.author.id}`}>
-                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-300 transition-colors">
-                                <span className="font-semibold text-gray-700">
-                                  {post.author.name.charAt(0)}
-                                </span>
-                              </div>
-                            </Link>
-                            <div>
-                              <Link
-                                href={`/profile/${post.author.id}`}
-                                className="hover:underline"
-                              >
-                                <h3 className="font-semibold text-gray-900 hover:text-blue-600">
-                                  {post.author.name}
-                                </h3>
-                              </Link>
-                              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <span>{post.author.career}</span>
-                                <span>• {post.author.semester}° Semestre</span>
-                                <span>
-                                  •
-                                  <div className="inline-flex items-center ml-1">
-                                    {renderStars(post.author.rating || 0)}
-                                  </div>
-                                  <span className="ml-1">
-                                    {post.author.rating
-                                      ? post.author.rating.toFixed(1)
-                                      : "Nuevo"}
-                                  </span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                postTypes[post.type as keyof typeof postTypes]
-                                  ?.color || "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {postTypes[post.type as keyof typeof postTypes]
-                                ?.label || post.type}
-                            </span>
-                            <span className="text-sm text-gray-500">
-                              {post.careerSpace}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Contenido */}
-                        <div className="mb-4">
-                          <h2 className="text-xl font-bold text-gray-900 mb-2">
-                            {post.title}
-                          </h2>
-                          <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                            {post.content}
-                          </p>
-                        </div>
-
-                        {/* Skills */}
-                        {post.skills.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {post.skills.map((skill, index) => (
-                              <span
-                                key={index}
-                                className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium"
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Información */}
-                        <div className="flex justify-between items-center text-sm text-gray-600 mb-4">
-                          <div className="flex space-x-4">
-                            <span>
-                              📅{" "}
-                              {new Date(post.createdAt).toLocaleDateString(
-                                "es-ES",
-                                {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                }
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Acciones */}
-                        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                          <div className="flex space-x-3">
-                            <button className="text-gray-600 hover:text-blue-600 text-sm font-medium flex items-center space-x-1">
-                              <span>💬</span>
-                              <span>Comentar</span>
-                            </button>
-                            <button className="text-gray-600 hover:text-green-600 text-sm font-medium flex items-center space-x-1">
-                              <span>🔔</span>
-                              <span>Guardar</span>
-                            </button>
-                          </div>
-                          <Link
-                            href={`/posts/${post.id}`}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm"
-                          >
-                            Ver Detalles
-                          </Link>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* Vista de Personas */}
-              {view === "people" && (
-                <div>
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">
-                      Personas en{" "}
-                      {selectedCareer === "Todos los espacios"
-                        ? "todas las carreras"
-                        : selectedCareer}
-                    </h2>
-                    <p className="text-gray-600">
-                      Conecta con estudiantes y profesionales de tu comunidad
-                    </p>
-                  </div>
-
-                  {isLoadingPeople ? (
-                    <div className="text-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                      <p className="text-gray-600 mt-4">Buscando personas...</p>
-                    </div>
-                  ) : peopleError ? (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                      {peopleError}
-                    </div>
-                  ) : people.length === 0 ? (
-                    <div className="text-center py-12 bg-white rounded-xl">
-                      <div className="text-6xl mb-4">👥</div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                        No se encontraron personas
-                      </h3>
-                      <p className="text-gray-600">
-                        {selectedCareer === "Todos los espacios"
-                          ? "Intenta con un filtro de carrera más específico."
-                          : "No hay usuarios registrados en esta carrera aún."}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {people.map((user) => (
-                        <div
-                          key={user.id}
-                          className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-start space-x-4">
-                            {/* Avatar */}
-                            <Link
-                              href={`/profile/${user.id}`}
-                              className="shrink-0"
-                            >
-                              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors cursor-pointer">
-                                <span className="text-lg font-bold text-blue-600">
-                                  {user.name.charAt(0)}
-                                </span>
-                              </div>
-                            </Link>
-
-                            {/* Información */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <Link
-                                    href={`/profile/${user.id}`}
-                                    className="hover:underline"
-                                  >
-                                    <h3 className="font-semibold text-gray-900 text-lg">
-                                      {user.name}
-                                    </h3>
-                                  </Link>
-                                  <p className="text-gray-600 text-sm">
-                                    {user.career} • {user.semester}° Semestre
-                                  </p>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <div className="flex items-center space-x-1">
-                                    {renderStars(user.rating || 0)}
-                                  </div>
-                                  <span className="text-sm font-medium text-gray-700">
-                                    {user.rating
-                                      ? user.rating.toFixed(1)
-                                      : "Nuevo"}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Bio */}
-                              {user.bio && (
-                                <p className="text-gray-700 text-sm mb-3 line-clamp-2">
-                                  {user.bio}
-                                </p>
-                              )}
-
-                              {/* Habilidades */}
-                              {user.skills.length > 0 && (
-                                <div className="mb-3">
-                                  <div className="flex flex-wrap gap-1">
-                                    {user.skills
-                                      .slice(0, 3)
-                                      .map((skill, index) => (
-                                        <span
-                                          key={index}
-                                          className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium"
-                                        >
-                                          {skill}
-                                        </span>
-                                      ))}
-                                    {user.skills.length > 3 && (
-                                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
-                                        +{user.skills.length - 3}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Intereses */}
-                              {user.interests.length > 0 && (
-                                <div className="mb-4">
-                                  <div className="flex flex-wrap gap-1">
-                                    {user.interests
-                                      .slice(0, 2)
-                                      .map((interest, index) => (
-                                        <span
-                                          key={index}
-                                          className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-medium"
-                                        >
-                                          {interest}
-                                        </span>
-                                      ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Acciones */}
-                              <div className="flex space-x-3">
-                                <Link
-                                  href={`/profile/${user.id}`}
-                                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm flex-1 text-center"
-                                >
-                                  Ver Perfil
-                                </Link>
-                                <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 font-medium text-sm">
-                                  Seguir
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Load More */}
-                  {people.length > 0 && (
-                    <div className="text-center mt-8">
-                      <button
-                        className="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 font-medium"
-                        onClick={loadPeople}
-                      >
-                        Ver más personas
-                      </button>
-                    </div>
-                  )}
-                </div>
+              {/* Contenido principal según vista */}
+              {view === "posts" ? (
+                <PostsView
+                  posts={posts}
+                  isLoading={isLoadingPosts}
+                  error={postsError}
+                  postTypes={postTypes}
+                />
+              ) : (
+                <PeopleView
+                  people={people}
+                  isLoading={isLoadingPeople}
+                  error={peopleError}
+                  selectedCareer={selectedCareer}
+                />
               )}
             </div>
           </div>
         </div>
       </main>
     </>
+  );
+}
+
+// Componente para vista de publicaciones
+function PostsView({
+  posts,
+  isLoading,
+  error,
+  postTypes,
+}: {
+  posts: Post[];
+  isLoading: boolean;
+  error: string;
+  postTypes: Record<string, PostType>;
+}) {
+  if (isLoading) return <LoadingSpinner />;
+
+  if (error)
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <p className="font-medium">Error:</p>
+        <p>{error}</p>
+      </div>
+    );
+
+  if (posts.length === 0)
+    return (
+      <EmptyState
+        emoji="📭"
+        title="No hay publicaciones aún"
+        message="Sé el primero en crear una publicación en este espacio."
+      />
+    );
+
+  return (
+    <div className="space-y-6">
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} postTypes={postTypes} />
+      ))}
+    </div>
+  );
+}
+
+// Componente para tarjeta de publicación
+function PostCard({
+  post,
+  postTypes,
+}: {
+  post: Post;
+  postTypes: Record<string, PostType>;
+}) {
+  const postType = postTypes[post.type as keyof typeof postTypes];
+
+  // Crear objeto author compatible
+  const authorData: PostAuthor = {
+    id: post.author.id,
+    name: post.author.name,
+    career: post.author.career,
+    semester: post.author.semester,
+    rating: post.author.rating,
+    skills: post.author.skills,
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-center space-x-3">
+          <UserAvatar user={authorData} />
+          <div>
+            <Link
+              href={`/profile/${post.author.id}`}
+              className="hover:underline"
+            >
+              <h3 className="font-semibold text-gray-900 hover:text-blue-600">
+                {post.author.name}
+              </h3>
+            </Link>
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <span>{post.author.career || "Sin carrera"}</span>
+              <span>• {post.author.semester || "?"}° Semestre</span>
+              <span>•</span>
+              <div className="inline-flex items-center">
+                <RatingStars rating={post.author.rating || 0} />
+                <span className="ml-1">
+                  {post.author.rating ? post.author.rating.toFixed(1) : "Nuevo"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          {postType && (
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-medium ${postType.color}`}
+            >
+              {postType.label}
+            </span>
+          )}
+          <span className="text-sm text-gray-500">{post.careerSpace}</span>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-2">{post.title}</h2>
+        <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+          {post.content}
+        </p>
+      </div>
+
+      {post.skills && post.skills.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {post.skills.map((skill, index) => (
+            <span
+              key={index}
+              className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium"
+            >
+              {skill}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center text-sm text-gray-600 mb-4">
+        <div className="flex space-x-4">
+          <span>
+            📅{" "}
+            {new Date(post.createdAt).toLocaleDateString("es-ES", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+        <div className="flex space-x-3">
+          <button className="text-gray-600 hover:text-blue-600 text-sm font-medium flex items-center space-x-1">
+            <span>💬</span>
+            <span>Comentar</span>
+          </button>
+          <button className="text-gray-600 hover:text-green-600 text-sm font-medium flex items-center space-x-1">
+            <span>🔔</span>
+            <span>Guardar</span>
+          </button>
+        </div>
+        <Link
+          href={`/posts/${post.id}`}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
+        >
+          Ver Detalles
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// Componente para vista de personas
+function PeopleView({
+  people,
+  isLoading,
+  error,
+  selectedCareer,
+}: {
+  people: User[];
+  isLoading: boolean;
+  error: string;
+  selectedCareer: string;
+}) {
+  if (isLoading) return <LoadingSpinner />;
+
+  if (error)
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <p className="font-medium">Error:</p>
+        <p>{error}</p>
+      </div>
+    );
+
+  if (people.length === 0)
+    return (
+      <EmptyState
+        emoji="👥"
+        title="No se encontraron personas"
+        message={
+          selectedCareer === "Todos los espacios"
+            ? "Intenta con un filtro de carrera más específico."
+            : "No hay usuarios registrados en esta carrera aún."
+        }
+      />
+    );
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">
+          Personas en{" "}
+          {selectedCareer === "Todos los espacios"
+            ? "todas las carreras"
+            : selectedCareer}
+        </h2>
+        <p className="text-gray-600">
+          Conecta con estudiantes y profesionales de tu comunidad
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {people.map((user) => (
+          <UserCard key={user.id} user={user} />
+        ))}
+      </div>
+
+      {/* Botón para cargar más */}
+      {people.length > 0 && (
+        <div className="text-center mt-8">
+          <button
+            onClick={() => {
+              /* Implementar paginación aquí */
+            }}
+            className="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+          >
+            Ver más personas
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Componente para tarjeta de usuario
+function UserCard({ user }: { user: User }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-start space-x-4">
+        <UserAvatar user={user} size={16} />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <Link href={`/profile/${user.id}`} className="hover:underline">
+                <h3 className="font-semibold text-gray-900 text-lg">
+                  {user.name}
+                </h3>
+              </Link>
+              <p className="text-gray-600 text-sm">
+                {user.career || "Sin carrera"} • {user.semester || "?"}°
+                Semestre
+              </p>
+            </div>
+            <div className="flex items-center space-x-1">
+              <RatingStars rating={user.rating || 0} />
+              <span className="text-sm font-medium text-gray-700">
+                {user.rating ? user.rating.toFixed(1) : "Nuevo"}
+              </span>
+            </div>
+          </div>
+
+          {user.bio && (
+            <p className="text-gray-700 text-sm mb-3 line-clamp-2">
+              {user.bio}
+            </p>
+          )}
+
+          {user.skills && user.skills.length > 0 && (
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-1">
+                {user.skills.slice(0, 3).map((skill, index) => (
+                  <span
+                    key={index}
+                    className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium"
+                  >
+                    {skill}
+                  </span>
+                ))}
+                {user.skills.length > 3 && (
+                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                    +{user.skills.length - 3}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {user.interests && user.interests.length > 0 && (
+            <div className="mb-4">
+              <div className="flex flex-wrap gap-1">
+                {user.interests.slice(0, 2).map((interest, index) => (
+                  <span
+                    key={index}
+                    className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-medium"
+                  >
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex space-x-3">
+            <Link
+              href={`/profile/${user.id}`}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm flex-1 text-center transition-colors"
+            >
+              Ver Perfil
+            </Link>
+            <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors">
+              Seguir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

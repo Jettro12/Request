@@ -2,11 +2,14 @@
   "name": "conversations-service",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc -p .",
-    "start": "node dist/index.js"
+    "prisma:generate": "prisma generate",
+    "dev": "npm run prisma:generate && ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "npm run prisma:generate && tsc -p .",
+    "start": "npm run dev",
+    "lint": "eslint src --max-warnings=0",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

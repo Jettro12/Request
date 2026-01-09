@@ -2,10 +2,38 @@ import { Request, Response } from "express";
 import { prisma } from "../prisma";
 import { producer, REQUESTS_TOPIC } from "../kafka";
 
+// 👇 CORRECCIÓN APLICADA: Default a notification-service
 const NOTIFICATION_SERVICE_URL =
-  process.env.NOTIFICATIONS_SERVICE_URL || "http://localhost:4001";
+  process.env.NOTIFICATIONS_SERVICE_URL || "http://notification-service:4001";
+const RATINGS_SERVICE_URL =
+  process.env.RATINGS_SERVICE_URL || "http://ratings-service:4006";
 
-// Helper to send notification event to notification service
+// Datos mock para usuarios
+const mockUsers: Record<string, any> = {
+  cmk56lt4f0007qj55so4afsyi: {
+    id: "cmk56lt4f0007qj55so4afsyi",
+    name: "Usuario de Prueba",
+    career: "Ingeniería en Sistemas",
+    semester: 6,
+    rating: 4.5,
+  },
+  user2: {
+    id: "user2",
+    name: "María García",
+    career: "Ingeniería Civil",
+    semester: 4,
+    rating: 4.2,
+  },
+  user3: {
+    id: "user3",
+    name: "Carlos López",
+    career: "Medicina",
+    semester: 3,
+    rating: 4.7,
+  },
+};
+
+// Helper para enviar notificaciones
 async function notifyUser(data: {
   type: string;
   title: string;
@@ -28,7 +56,7 @@ async function notifyUser(data: {
   }
 }
 
-// GET /requests - list requests for user
+// GET /requests - Listar solicitudes (VERSIÓN CON MOCK)
 export async function getRequests(req: Request, res: Response) {
   try {
     const userId = req.query.userId as string | undefined;
@@ -47,27 +75,60 @@ export async function getRequests(req: Request, res: Response) {
       whereCondition = { OR: [{ toUserId: userId }, { fromUserId: userId }] };
     }
 
+    // Obtener requests SIN relaciones
     const requests = await prisma.request.findMany({
       where: whereCondition,
       include: {
-        fromUser: {
-          select: { id: true, name: true, career: true, rating: true },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
-        toUser: {
-          select: { id: true, name: true, career: true, rating: true },
+        _count: {
+          select: { messages: true },
         },
       },
       orderBy: { updatedAt: "desc" },
     });
 
-    return res.json({ requests });
+    // Enriquecer con datos mock de usuarios
+    const enrichedRequests = requests.map((request) => {
+      const messagesWithSenders =
+        request.messages?.map((message) => ({
+          ...message,
+          sender: mockUsers[message.senderId] || {
+            id: message.senderId,
+            name: `Usuario ${message.senderId.substring(0, 8)}`,
+          },
+        })) || [];
+
+      return {
+        ...request,
+        fromUser: mockUsers[request.fromUserId] || {
+          id: request.fromUserId,
+          name: `Usuario ${request.fromUserId.substring(0, 8)}`,
+          career: "No especificada",
+          semester: 0,
+          rating: 0,
+        },
+        toUser: mockUsers[request.toUserId] || {
+          id: request.toUserId,
+          name: `Usuario ${request.toUserId.substring(0, 8)}`,
+          career: "No especificada",
+          semester: 0,
+          rating: 0,
+        },
+        messages: messagesWithSenders,
+      };
+    });
+
+    return res.json({ requests: enrichedRequests });
   } catch (error) {
     console.error("Error in getRequests", error);
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
 
-// POST /requests - create new request
+// POST /requests - Crear nueva solicitud (VERSIÓN CON MOCK)
 export async function createRequest(req: Request, res: Response) {
   try {
     const { fromUserId, toUserId, message, type } = req.body;
@@ -80,7 +141,7 @@ export async function createRequest(req: Request, res: Response) {
       return res.status(400).json({ error: "Cannot send request to yourself" });
     }
 
-    // Check if pending request already exists
+    // Verificar si ya existe una solicitud pendiente
     const existing = await prisma.request.findFirst({
       where: { fromUserId, toUserId, status: "PENDING" },
     });
@@ -89,6 +150,7 @@ export async function createRequest(req: Request, res: Response) {
       return res.status(400).json({ error: "Pending request already exists" });
     }
 
+    // Crear solicitud SIN relaciones
     const newRequest = await prisma.request.create({
       data: {
         type: type.toUpperCase(),
@@ -103,13 +165,9 @@ export async function createRequest(req: Request, res: Response) {
           },
         },
       },
-      include: {
-        fromUser: { select: { id: true, name: true } },
-        toUser: { select: { id: true, name: true } },
-      },
     });
 
-    // Publish event to Kafka
+    // Publicar evento en Kafka
     await producer.send({
       topic: REQUESTS_TOPIC,
       messages: [
@@ -123,23 +181,38 @@ export async function createRequest(req: Request, res: Response) {
       ],
     });
 
-    // Send notification
+    // Enviar notificación al receptor
     await notifyUser({
       type: "REQUEST_RECEIVED",
       title: "Nueva solicitud recibida",
-      message: `${newRequest.fromUser.name} te envió una solicitud de ${type}`,
+      message: `${
+        mockUsers[fromUserId]?.name || "Un usuario"
+      } te envió una solicitud de ${type}`,
       userId: toUserId,
       relatedId: newRequest.id,
     });
 
-    return res.status(201).json({ request: newRequest });
+    // Retornar con datos mock
+    const requestWithUsers = {
+      ...newRequest,
+      fromUser: mockUsers[fromUserId] || {
+        id: fromUserId,
+        name: `Usuario ${fromUserId.substring(0, 8)}`,
+      },
+      toUser: mockUsers[toUserId] || {
+        id: toUserId,
+        name: `Usuario ${toUserId.substring(0, 8)}`,
+      },
+    };
+
+    return res.status(201).json({ request: requestWithUsers });
   } catch (error) {
     console.error("Error in createRequest", error);
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
 
-// GET /requests/:id - get single request
+// GET /requests/:id - Obtener detalle de una solicitud (VERSIÓN CON MOCK)
 export async function getRequestById(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -152,9 +225,7 @@ export async function getRequestById(req: Request, res: Response) {
     const request = await prisma.request.findUnique({
       where: { id },
       include: {
-        fromUser: { select: { id: true, name: true, career: true } },
-        toUser: { select: { id: true, name: true, career: true } },
-        messages: { include: { sender: { select: { id: true, name: true } } } },
+        messages: true,
       },
     });
 
@@ -162,18 +233,113 @@ export async function getRequestById(req: Request, res: Response) {
       return res.status(404).json({ error: "Request not found" });
     }
 
+    // Seguridad: Solo el emisor o receptor pueden verla
     if (request.fromUserId !== userId && request.toUserId !== userId) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    return res.json({ request });
+    // Enriquecer mensajes con datos de sender
+    const enrichedMessages =
+      request.messages?.map((message) => ({
+        ...message,
+        sender: mockUsers[message.senderId] || {
+          id: message.senderId,
+          name: `Usuario ${message.senderId.substring(0, 8)}`,
+        },
+      })) || [];
+
+    const enrichedRequest = {
+      ...request,
+      fromUser: mockUsers[request.fromUserId] || {
+        id: request.fromUserId,
+        name: `Usuario ${request.fromUserId.substring(0, 8)}`,
+        career: "No especificada",
+      },
+      toUser: mockUsers[request.toUserId] || {
+        id: request.toUserId,
+        name: `Usuario ${request.toUserId.substring(0, 8)}`,
+        career: "No especificada",
+      },
+      messages: enrichedMessages,
+    };
+
+    return res.json({ request: enrichedRequest });
   } catch (error) {
     console.error("Error in getRequestById", error);
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
 
-// PUT /requests/:id - update request (accept/reject/complete)
+// GET /user/:userId - Obtener solicitudes de un usuario (VERSIÓN CON MOCK)
+export async function getUserRequests(req: Request, res: Response) {
+  try {
+    const { userId } = req.params;
+    const type = req.query.type as string | undefined;
+
+    let whereCondition: any = {};
+    if (type === "received") {
+      whereCondition = { toUserId: userId };
+    } else if (type === "sent") {
+      whereCondition = { fromUserId: userId };
+    } else {
+      whereCondition = { OR: [{ toUserId: userId }, { fromUserId: userId }] };
+    }
+
+    const requests = await prisma.request.findMany({
+      where: whereCondition,
+      include: {
+        messages: {
+          orderBy: { createdAt: "desc" },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    // Enriquecer con datos mock
+    const enrichedRequests = requests.map((request) => {
+      const enrichedMessages =
+        request.messages?.map((message) => ({
+          ...message,
+          sender: mockUsers[message.senderId] || {
+            id: message.senderId,
+            name: `Usuario ${message.senderId.substring(0, 8)}`,
+          },
+        })) || [];
+
+      return {
+        ...request,
+        fromUser: mockUsers[request.fromUserId] || {
+          id: request.fromUserId,
+          name: `Usuario ${request.fromUserId.substring(0, 8)}`,
+          career: "No especificada",
+          semester: 0,
+          rating: 0,
+        },
+        toUser: mockUsers[request.toUserId] || {
+          id: request.toUserId,
+          name: `Usuario ${request.toUserId.substring(0, 8)}`,
+          career: "No especificada",
+          semester: 0,
+          rating: 0,
+        },
+        messages: enrichedMessages,
+      };
+    });
+
+    return res.json({ requests: enrichedRequests });
+  } catch (error) {
+    console.error("Error in getUserRequests", error);
+    return res.status(500).json({ error: "Error interno del servidor" });
+  }
+}
+
+// Las otras funciones (updateRequest, updateRequestStatus, completeRequest, etc.)
+// se mantienen igual, pero QUITA las relaciones en los includes
+
+// PUT /requests/:id - Actualizar estado
 export async function updateRequest(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -183,16 +349,16 @@ export async function updateRequest(req: Request, res: Response) {
       return res.status(400).json({ error: "userId and status are required" });
     }
 
+    // Obtener solicitud SIN relaciones
     const request = await prisma.request.findUnique({
       where: { id },
-      include: { fromUser: true, toUser: true },
     });
 
     if (!request) {
       return res.status(404).json({ error: "Request not found" });
     }
 
-    // Authorization checks
+    // Regla: Solo el receptor puede aceptar o rechazar
     if (status === "ACCEPTED" || status === "REJECTED") {
       if (request.toUserId !== userId) {
         return res
@@ -203,6 +369,7 @@ export async function updateRequest(req: Request, res: Response) {
 
     const updateData: any = { status };
 
+    // Si se completa, guardamos ratings si vienen incluidos
     if (status === "COMPLETED") {
       updateData.completedAt = new Date();
       const isFromUser = request.fromUserId === userId;
@@ -219,7 +386,7 @@ export async function updateRequest(req: Request, res: Response) {
       data: updateData,
     });
 
-    // Publish event to Kafka
+    // Kafka: Evento de cambio de estado
     await producer.send({
       topic: REQUESTS_TOPIC,
       messages: [
@@ -234,21 +401,28 @@ export async function updateRequest(req: Request, res: Response) {
       ],
     });
 
-    // Send notification
+    // Enviar notificación a la contraparte
     const notificationUserId =
       request.fromUserId === userId ? request.toUserId : request.fromUserId;
+
     let notifType = "REQUEST_UPDATED";
     let notifMsg = "Tu solicitud fue actualizada";
 
     if (status === "ACCEPTED") {
       notifType = "REQUEST_ACCEPTED";
-      notifMsg = `${request.fromUser.name} aceptó tu solicitud`;
+      notifMsg = `${
+        mockUsers[request.fromUserId]?.name || "Un usuario"
+      } aceptó tu solicitud`;
     } else if (status === "REJECTED") {
       notifType = "REQUEST_REJECTED";
-      notifMsg = `${request.fromUser.name} rechazó tu solicitud`;
+      notifMsg = `${
+        mockUsers[request.fromUserId]?.name || "Un usuario"
+      } rechazó tu solicitud`;
     } else if (status === "COMPLETED") {
       notifType = "REQUEST_COMPLETED";
-      notifMsg = `${request.fromUser.name} marcó el proyecto como completado`;
+      notifMsg = `${
+        mockUsers[request.fromUserId]?.name || "Un usuario"
+      } marcó el proyecto como completado`;
     }
 
     await notifyUser({
@@ -266,7 +440,10 @@ export async function updateRequest(req: Request, res: Response) {
   }
 }
 
-// DELETE /requests/:id
+// Para las otras funciones (completeRequest, getRequestByChat, etc.),
+// solo necesitas QUITAR las relaciones que intentas incluir
+
+// DELETE /requests/:id - Eliminar solicitud
 export async function deleteRequest(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -282,6 +459,7 @@ export async function deleteRequest(req: Request, res: Response) {
       return res.status(404).json({ error: "Request not found" });
     }
 
+    // Solo el creador puede eliminar
     if (request.fromUserId !== userId) {
       return res.status(403).json({ error: "Only creator can delete" });
     }
