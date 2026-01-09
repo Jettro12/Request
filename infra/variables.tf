@@ -17,9 +17,11 @@ variable "public_subnet_cidr" {
 variable "private_subnet_cidr" {
   default = "10.0.2.0/24"
 }
-
+variable "key_name" {
+  default = "request-key"
+}
 variable "instance_type" {
-  default = "t2.micro"
+  default = "t3.micro"
 }
 
 variable "ami_id" {

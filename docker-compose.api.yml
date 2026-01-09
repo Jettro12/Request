@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "3001:3000"
+    env_file: .env
+
+  users-service:
+    build: ./services/users-service
+    ports:
+      - "3002:3000"
+    env_file: .env
+
+  requests-service:
+    build: ./services/requests-service
+    ports:
+      - "3003:3000"
+    env_file: .env
+
+  messages-service:
+    build: ./services/messages-service
+    ports:
+      - "3004:3000"
+    env_file: .env
+
+  notifications-service:
+    build: ./services/notification-service
+    ports:
+      - "3005:3000"
+    env_file: .env
+
+networks:
+  default:
+    driver: bridge

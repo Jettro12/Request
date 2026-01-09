@@ -1,9 +1,23 @@
-resource "aws_launch_template" "app" {
-  name_prefix   = "${var.project_name}-lt"
-  image_id      = var.ami_id
-  instance_type = var.instance_type
+resource "aws_autoscaling_group" "api" {
+  desired_capacity = 2
+  max_size         = 3
+  min_size         = 1
+  vpc_zone_identifier = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 
-  vpc_security_group_ids = [aws_security_group.app_sg.id]
+  launch_template {
+    id      = aws_launch_template.api.id
+    version = "$Latest"
+  }
+}
 
-  user_data = base64encode(file("${path.module}/user-data.sh"))
+resource "aws_autoscaling_group" "frontend" {
+  desired_capacity = 1
+  max_size         = 2
+  min_size         = 1
+  vpc_zone_identifier = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+
+  launch_template {
+    id      = aws_launch_template.frontend.id
+    version = "$Latest"
+  }
 }
