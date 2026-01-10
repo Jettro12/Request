@@ -1,0 +1,54 @@
+name: Deploy INFRA (Data Server)
+
+on:
+  workflow_dispatch: # Se activa manualmente con un botón
+
+jobs:
+  deploy-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Data Layer via Bastion
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DATA_PRIVATE_IP }} # IP PRIVADA del Data Server
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }} # IP PUBLICA del Bastion
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p ~/infra
+
+            # Variables necesarias para Kafka
+            echo "DATA_HOST=${{ secrets.DATA_PRIVATE_IP }}" > ~/infra/.env
+
+          # Copia el archivo compose
+      - name: Copy Compose File
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DATA_PRIVATE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.data.yaml"
+          target: "~/infra"
+
+      - name: Start Infra
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DATA_PRIVATE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/infra
+            mv docker-compose.data.yaml docker-compose.yaml
+            docker compose pull
+            docker compose up -d

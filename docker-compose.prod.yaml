@@ -1,0 +1,223 @@
+version: "3.8"
+
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  # Agrega volumenes para Kafka/Zookeeper si quieres persistencia real,
+  # pero para pruebas académicas se puede omitir para ahorrar espacio.
+
+services:
+  # ===============================
+  # INFRAESTRUCTURA (Bases de datos y Mensajería)
+  # ===============================
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 5
+    networks:
+      - microservices-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    networks:
+      - microservices-net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    ports:
+      # Exponemos solo lo necesario. La gestión (15672) quizás quieras cerrarla al público en prod real
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - microservices-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - microservices-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # En producción real, ADVERTISED_LISTENERS debe usar la IP PÚBLICA si se accede desde fuera
+      # Para comunicación interna entre contenedores, usar el nombre del servicio basta.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - microservices-net
+
+  # ===============================
+  # MICROSERVICIOS (Usando Imágenes de GHCR)
+  # Nota: GHCR requiere nombres en minúsculas. Asumo tu usuario es 'jettro12'
+  # ===============================
+
+  auth-service:
+    image: ghcr.io/jettro12/auth-service:latest
+    container_name: auth-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4004:4004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  users-service:
+    image: ghcr.io/jettro12/users-service:latest
+    container_name: users-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4007:4007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  posts-service:
+    image: ghcr.io/jettro12/posts-service:latest
+    container_name: posts-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4002:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  requests-service:
+    image: ghcr.io/jettro12/requests-service:latest
+    container_name: requests-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4003:4003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  notification-service:
+    image: ghcr.io/jettro12/notification-service:latest
+    container_name: notification-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  profile-service:
+    image: ghcr.io/jettro12/profile-service:latest
+    container_name: profile-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4005:4005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  ratings-service:
+    image: ghcr.io/jettro12/ratings-service:latest
+    container_name: ratings-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4006:4006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  messages-service:
+    image: ghcr.io/jettro12/messages-service:latest
+    container_name: messages-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4008:4008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  conversations-service:
+    image: ghcr.io/jettro12/conversations-service:latest
+    container_name: conversations-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4009:4009"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  chat-service:
+    image: ghcr.io/jettro12/chat-service:latest
+    container_name: chat-service
+    restart: always
+    env_file: .env
+    ports:
+      - "4010:4010"
+    networks:
+      - microservices-net
+
+  # ===============================
+  # FRONTEND
+  # ===============================
+  frontend:
+    image: ghcr.io/jettro12/frontend:latest
+    container_name: frontend
+    restart: always
+    env_file: .env
+    ports:
+      - "80:3000" # Mapeamos el puerto 80 del servidor (Web estándar) al 3000 del contenedor
+    networks:
+      - microservices-net

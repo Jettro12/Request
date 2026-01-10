@@ -1,0 +1,118 @@
+name: Deploy APPS (App Server)
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  # JOB 1: CONSTRUIR Y SUBIR IMAGENES (EN PARALELO)
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # LISTA DE TUS SERVICIOS Y SUS CARPETAS
+        service:
+          - name: auth-service
+            path: ./services/auth-service
+          - name: users-service
+            path: ./services/users-service
+          - name: posts-service
+            path: ./services/posts-service
+          - name: requests-service
+            path: ./services/requests-service
+          - name: notification-service
+            path: ./services/notification-service
+          - name: profile-service
+            path: ./services/profile-service
+          - name: ratings-service
+            path: ./services/ratings-service
+          - name: messages-service
+            path: ./services/messages-service
+          - name: conversations-service
+            path: ./services/conversations-service
+          - name: chat-service
+            path: ./services/chat-service
+          - name: frontend
+            path: ./frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Poner el nombre en minúsculas para evitar errores de Docker
+      - name: Downcase Image Name
+        run: |
+          echo "IMAGE_NAME=${REGISTRY}/${OWNER,,}/${{ matrix.service.name }}:latest" >> $GITHUB_ENV
+
+      - name: Build and Push ${{ matrix.service.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.path }}
+          push: true
+          tags: ${{ env.IMAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # JOB 2: DESPLEGAR EN EL APP SERVER
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy Compose to App Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.APP_PRIVATE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.app.yaml"
+          target: "~/apps"
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.APP_PRIVATE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Pasamos variables para que docker-compose sepa qué usuario usar
+          envs: OWNER
+          script: |
+            # Variable para el nombre del dueño del repo en minúsculas
+            export GITHUB_REPOSITORY_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+
+            # Login para descargar imágenes privadas
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            mkdir -p ~/apps
+            cd ~/apps
+            mv docker-compose.app.yaml docker-compose.yaml
+
+            # Crear .env con secretos
+            echo "${{ secrets.ENV_FILE }}" > .env
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f

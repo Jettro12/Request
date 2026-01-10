@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  # === MICROSERVICIOS ===
+  # Usamos variables para las versiones, por defecto 'latest'
+
+  auth-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/auth-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4004:4004"
+
+  users-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/users-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4007:4007"
+
+  posts-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/posts-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4002:4002"
+
+  requests-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/requests-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4003:4003"
+
+  notification-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/notification-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4001:4001"
+
+  profile-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/profile-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4005:4005"
+
+  ratings-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/ratings-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4006:4006"
+
+  messages-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/messages-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4008:4008"
+
+  conversations-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/conversations-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4009:4009"
+
+  chat-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/chat-service:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "4010:4010"
+
+  # === FRONTEND ===
+  frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/frontend:latest
+    restart: always
+    env_file: .env
+    ports:
+      - "80:3000"

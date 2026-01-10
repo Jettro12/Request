@@ -1,0 +1,86 @@
+name: Deploy to AWS via Bastion (GHCR)
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  # Define el nombre de la imagen aquí para usarlo en todo el archivo
+  # IMPORTANTE: GitHub Container Registry exige que el nombre sea en MINÚSCULAS
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/request-app:latest
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Permiso necesario para subir a GHCR
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Token automático de GitHub Actions
+
+      - name: Build and push App Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_NAME }}
+          # Usamos caché de GitHub para que sea más rápido
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.APP_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ${{ secrets.SSH_USER }}
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.prod.yaml"
+          target: "~/deploy"
+
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.APP_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ${{ secrets.SSH_USER }}
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Pasamos las variables de entorno para que el script las use
+          envs: IMAGE_NAME
+          script: |
+            export IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/request-app:latest
+
+            # 1. Loguearse en GHCR dentro del servidor (para poder descargar)
+            # Usamos el PAT que guardaste en secretos
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            mkdir -p ~/deploy
+            cd ~/deploy
+            mv docker-compose.prod.yaml docker-compose.yaml
+
+            echo "${{ secrets.ENV_FILE }}" > .env
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
