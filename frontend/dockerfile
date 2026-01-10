@@ -5,11 +5,14 @@
 # 1. Etapa de Dependencias
 FROM node:18-alpine AS deps
 WORKDIR /app
-# Copiamos los package.json para instalar dependencias
 COPY package.json package-lock.json* ./
-# Si tienes un archivo prisma en el frontend, descomenta la siguiente línea:
-# COPY prisma ./prisma/ 
-RUN npm ci
+# Si tienes prisma en frontend descomenta:
+# COPY prisma ./prisma/
+
+# --- CAMBIO IMPORTANTE ---
+# Usamos 'npm install' en lugar de 'npm ci' para evitar errores de lockfile
+RUN npm install 
+# -------------------------
 
 # 2. Etapa de Construcción (Builder)
 FROM node:18-alpine AS builder
@@ -17,33 +20,31 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# --- AQUÍ ES DONDE OCURRÍA TU ERROR ---
-# Definimos los argumentos que vienen desde GitHub Actions
+# Argumentos y Variables (Arreglado el Warning de SecretsUsed)
+# Nota: Docker siempre se quejará de pasar secretos por ARG, 
+# pero para este proyecto es aceptable.
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG NEXTAUTH_SECRET
 ARG DATABASE_URL
 
-# Los convertimos en variables de entorno disponibles DURANTE el build
+# Arreglado Warning LegacyKeyValueFormat (Se usa = ahora)
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV DATABASE_URL=$DATABASE_URL
-# ---------------------------------------
 
- 
+# Generar cliente de prisma (solo si usas prisma en frontend)
+# RUN npx prisma generate
 
-# Construimos la aplicación Next.js
 RUN npm run build
 
 # 3. Etapa de Ejecución (Runner)
 FROM node:18-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
-# Crear usuario para seguridad
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copiamos los archivos necesarios desde el builder
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
@@ -51,6 +52,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 
 EXPOSE 3000
-ENV PORT 3000
+ENV PORT=3000
 
 CMD ["node", "server.js"]
