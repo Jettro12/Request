@@ -2,7 +2,7 @@ name: Deploy APPS (App Server)
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "**"]
 
 env:
   REGISTRY: ghcr.io
