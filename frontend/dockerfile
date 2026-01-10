@@ -6,38 +6,32 @@
 FROM node:18-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-# Si tienes prisma en frontend descomenta:
-# COPY prisma ./prisma/
-
-# --- CAMBIO IMPORTANTE ---
-# Usamos 'npm install' en lugar de 'npm ci' para evitar errores de lockfile
+# Usamos npm install para ser flexibles con versiones
 RUN npm install 
-# -------------------------
 
 # 2. Etapa de Construcción (Builder)
 FROM node:18-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+# Aquí se copia TODO (incluyendo tu carpeta 'src') para poder compilar
 COPY . .
 
-# Argumentos y Variables (Arreglado el Warning de SecretsUsed)
-# Nota: Docker siempre se quejará de pasar secretos por ARG, 
-# pero para este proyecto es aceptable.
+# Argumentos (Variables de entorno para el build)
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG NEXTAUTH_SECRET
 ARG DATABASE_URL
 
-# Arreglado Warning LegacyKeyValueFormat (Se usa = ahora)
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV DATABASE_URL=$DATABASE_URL
 
-# Generar cliente de prisma (solo si usas prisma en frontend)
+# Si usas prisma en frontend descomenta:
 # RUN npx prisma generate
 
+# Aquí Next.js toma tu 'src', lo compila y lo guarda en '.next'
 RUN npm run build
 
-# 3. Etapa de Ejecución (Runner)
+# 3. Etapa de Ejecución (Runner) - La imagen final ligera
 FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -45,7 +39,13 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# --- CORRECCIÓN ---
+# Como no tienes carpeta 'public', ELIMINAMOS o COMENTAMOS esta línea.
+# NO la cambies por 'src'. El runner no necesita 'src'.
+# COPY --from=builder /app/public ./public
+# ------------------
+
+# Copiamos la aplicación ya compilada (que viene de tu src original)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
