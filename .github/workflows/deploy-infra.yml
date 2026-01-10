@@ -1,7 +1,8 @@
 name: Deploy INFRA (Data Server)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: ["main", "feature/infra", "**"]
 
 jobs:
   deploy-infra:
