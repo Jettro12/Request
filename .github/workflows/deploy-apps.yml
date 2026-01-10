@@ -59,6 +59,11 @@ jobs:
         run: |
           echo "IMAGE_NAME=${REGISTRY}/${OWNER,,}/${{ matrix.service.name }}:latest" >> $GITHUB_ENV
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
       - name: Build and Push ${{ matrix.service.name }}
         uses: docker/build-push-action@v5
         with:
