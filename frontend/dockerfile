@@ -29,9 +29,7 @@ ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV DATABASE_URL=$DATABASE_URL
 # ---------------------------------------
 
-# Si usas Prisma en el frontend, genera el cliente antes del build
-# Si NO usas prisma en el frontend, borra esta línea:
-RUN npx prisma generate
+ 
 
 # Construimos la aplicación Next.js
 RUN npm run build
