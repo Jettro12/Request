@@ -219,8 +219,10 @@ export class ApiClient {
   static auth = {
     register: async (data: any): Promise<ApiResponse<{ userId: string }>> => {
       try {
-        // CORRECCIÓN: Usar path vacío
-        const url = getApiUrl("auth", "");
+        // CORRECCIÓN IMPORTANTE: Cambiamos "" por "register"
+        // Esto genera "/auth/register" -> Proxy -> Backend "/register"
+        const url = getApiUrl("auth", "register");
+
         const response = await ApiClient.post<ApiResponse>(url, data);
         return response;
       } catch (error: any) {
@@ -248,7 +250,6 @@ export class ApiClient {
       }
     },
   };
-
   // USERS SERVICE
   static users = {
     getUserProfile: async (
