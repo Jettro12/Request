@@ -1,86 +1,128 @@
-name: Deploy to AWS via Bastion (GHCR)
+name: Deploy Microservices to AWS
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - "fix-microservices" # <--- Asegúrate que esta es tu rama de trabajo
 
-env:
-  # Define el nombre de la imagen aquí para usarlo en todo el archivo
-  # IMPORTANTE: GitHub Container Registry exige que el nombre sea en MINÚSCULAS
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/request-app:latest
+permissions:
+  packages: write
+  contents: read
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write # Permiso necesario para subir a GHCR
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 1. Iniciar sesión en GitHub Packages (GHCR)
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }} # Token automático de GitHub Actions
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push App Image
+      # ==========================================
+      # 2. CONSTRUIR Y SUBIR IMAGENES (11 Servicios)
+      # ==========================================
+
+      # Backend Services
+      - name: Build and Push Auth Service
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./auth-service
           push: true
-          tags: ${{ env.IMAGE_NAME }}
-          # Usamos caché de GitHub para que sea más rápido
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ghcr.io/jettro12/auth-service:latest
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Copy docker-compose via SCP
-        uses: appleboy/scp-action@master
+      - name: Build and Push Users Service
+        uses: docker/build-push-action@v5
         with:
-          host: ${{ secrets.APP_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          proxy_host: ${{ secrets.BASTION_HOST }}
-          proxy_username: ${{ secrets.SSH_USER }}
-          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yaml"
-          target: "~/deploy"
+          context: ./users-service
+          push: true
+          tags: ghcr.io/jettro12/users-service:latest
 
-      - name: SSH and Deploy
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Build and Push Posts Service
+        uses: docker/build-push-action@v5
         with:
-          host: ${{ secrets.APP_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          proxy_host: ${{ secrets.BASTION_HOST }}
-          proxy_username: ${{ secrets.SSH_USER }}
-          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Pasamos las variables de entorno para que el script las use
-          envs: IMAGE_NAME
-          script: |
-            export IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/request-app:latest
+          context: ./posts-service
+          push: true
+          tags: ghcr.io/jettro12/posts-service:latest
 
-            # 1. Loguearse en GHCR dentro del servidor (para poder descargar)
-            # Usamos el PAT que guardaste en secretos
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and Push Requests Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./requests-service
+          push: true
+          tags: ghcr.io/jettro12/requests-service:latest
 
-            mkdir -p ~/deploy
-            cd ~/deploy
-            mv docker-compose.prod.yaml docker-compose.yaml
+      - name: Build and Push Notification Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./notification-service
+          push: true
+          tags: ghcr.io/jettro12/notification-service:latest
 
-            echo "${{ secrets.ENV_FILE }}" > .env
+      - name: Build and Push Profile Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./profile-service
+          push: true
+          tags: ghcr.io/jettro12/profile-service:latest
 
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
+      - name: Build and Push Ratings Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ratings-service
+          push: true
+          tags: ghcr.io/jettro12/ratings-service:latest
+
+      - name: Build and Push Messages Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./messages-service
+          push: true
+          tags: ghcr.io/jettro12/messages-service:latest
+
+      - name: Build and Push Conversations Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./conversations-service
+          push: true
+          tags: ghcr.io/jettro12/conversations-service:latest
+
+      - name: Build and Push Chat Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./chat-service
+          push: true
+          tags: ghcr.io/jettro12/chat-service:latest
+
+      # Frontend
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ghcr.io/jettro12/frontend:latest
+
+      # ==========================================
+      # 3. DESPLIEGUE EN AWS (Instance Refresh)
+      # ==========================================
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Refresh ASG Instances
+        run: |
+          echo "Iniciando refresco de instancias en AWS..."
+          # Esto mata la instancia vieja y crea una nueva con las imagenes actualizadas
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name request-app-asg \
+            --preferences '{"MinHealthyPercentage": 0, "InstanceWarmup": 300}'
