@@ -3,13 +3,28 @@ const nextConfig = {
   output: "standalone", // MANTENER ESTO (Vital para Docker)
   reactStrictMode: true,
 
-  // Agregamos la configuración del Proxy aquí
+  // Configuración del Proxy Inverso
   async rewrites() {
     return [
+      // 1. REGLA CRÍTICA PARA ARREGLAR LOGIN
+      // Cuando el frontend pide "/auth", lo mandamos a "/login" en el backend
+      {
+        source: "/auth",
+        destination: "http://auth-service:4004/login",
+      },
+      // 2. REGLA PARA REGISTRO
+      // Cuando el frontend pide "/register", lo mandamos a "/register"
+      {
+        source: "/register",
+        destination: "http://auth-service:4004/register",
+      },
+      // 3. REGLA GENÉRICA (Por si acaso)
       {
         source: "/auth/:path*",
         destination: "http://auth-service:4004/:path*",
       },
+
+      // --- Resto de Microservicios ---
       {
         source: "/users/:path*",
         destination: "http://users-service:4007/:path*",

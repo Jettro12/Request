@@ -118,16 +118,26 @@ resource "aws_security_group" "ec2_sg" {
 ############################################
 resource "aws_launch_template" "app_lt" {
   name_prefix   = "app-lt-"
-  image_id      = "ami-0c02fb55956c7d316" # Amazon Linux 2 (us-east-1)
+  image_id      = "ami-0c02fb55956c7d316"
   
-  # CRÍTICO: Kafka y Java requieren memoria. t3.medium = 4GB RAM.
+  # RAM: 4GB (Necesaria para Kafka)
   instance_type = "t3.medium"
   
   key_name      = var.ssh_key_name
 
+  # === NUEVO: AUMENTAR DISCO DURO A 30GB ===
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size = 30    # 30 GB de espacio
+      volume_type = "gp3" # Disco rápido y moderno
+      delete_on_termination = true
+    }
+  }
+  # =========================================
+
   network_interfaces {
     security_groups             = [aws_security_group.ec2_sg.id]
-    # CRÍTICO: True para tener salida a internet en VPC Default
     associate_public_ip_address = true
   }
 
@@ -164,7 +174,10 @@ resource "aws_launch_template" "app_lt" {
     # 6. Ajuste memoria virtual (Elastic/Kafka)
     sysctl -w vm.max_map_count=262144
 
-    # 7. Levantar
+    # 7. Limpiar sistema para liberar espacio antes de arrancar
+    docker system prune -a -f
+
+    # 8. Levantar
     docker-compose up -d
   EOF
   )
