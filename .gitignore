@@ -43,7 +43,10 @@ next-env.d.ts
 /src/generated/prisma
 
 # Terraform
+*.tfvars
+*.tfvars.txt
 .terraform/
 *.tfstate
 *.tfstate.backup
 *.exe
+.terraform.lock.hcl

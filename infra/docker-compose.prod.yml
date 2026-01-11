@@ -1,0 +1,210 @@
+version: "3.9"
+
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  pg_data:
+
+services:
+  # ===============================
+  # INFRAESTRUCTURA
+  # ===============================
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # ESTA LINEA ES LA CLAVE PARA QUE FUNCIONE:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+    networks:
+      - microservices-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - microservices-net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    networks:
+      - microservices-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - microservices-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - microservices-net
+
+  # ===============================
+  # MICROSERVICIOS
+  # ===============================
+  auth-service:
+    image: ghcr.io/jettro12/auth-service:latest
+    container_name: auth-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/authdb
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      PORT: 4004
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  users-service:
+    image: ghcr.io/jettro12/users-service:latest
+    container_name: users-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/usersdb
+      PORT: 4007
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  posts-service:
+    image: ghcr.io/jettro12/posts-service:latest
+    container_name: posts-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postsdb
+      KAFKA_BROKER: kafka:9092
+      PORT: 4002
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  requests-service:
+    image: ghcr.io/jettro12/requests-service:latest
+    container_name: requests-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestsdb
+      PORT: 4003
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  notification-service:
+    image: ghcr.io/jettro12/notification-service:latest
+    container_name: notification-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/notificationsdb
+      PORT: 4001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  profile-service:
+    image: ghcr.io/jettro12/profile-service:latest
+    container_name: profile-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/profiledb
+      PORT: 4005
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  ratings-service:
+    image: ghcr.io/jettro12/ratings-service:latest
+    container_name: ratings-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ratingsdb
+      PORT: 4006
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  messages-service:
+    image: ghcr.io/jettro12/messages-service:latest
+    container_name: messages-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/messagesdb
+      PORT: 4008
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  conversations-service:
+    image: ghcr.io/jettro12/conversations-service:latest
+    container_name: conversations-service
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/conversationsdb
+      PORT: 4009
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  chat-service:
+    image: ghcr.io/jettro12/chat-service:latest
+    container_name: chat-service
+    environment:
+      PORT: 4010
+    networks:
+      - microservices-net
+
+  # ===============================
+  # FRONTEND
+  # ===============================
+  frontend:
+    image: ghcr.io/jettro12/frontend:latest
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # NOTA: En produccion real, esto deberia ser el DNS del Load Balancer
+      # Pero para que arranque, lo dejamos asi.
+      NEXT_PUBLIC_API_BASE_URL: http://localhost
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: super-secret-prod
+    depends_on:
+      - auth-service
+      - users-service
+      - posts-service
+      - requests-service
+    networks:
+      - microservices-net

@@ -1,0 +1,9 @@
+CREATE DATABASE authdb;
+CREATE DATABASE usersdb;
+CREATE DATABASE postsdb;
+CREATE DATABASE requestsdb;
+CREATE DATABASE notificationsdb;
+CREATE DATABASE profiledb;
+CREATE DATABASE ratingsdb;
+CREATE DATABASE messagesdb;
+CREATE DATABASE conversationsdb;
