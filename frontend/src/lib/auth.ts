@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getApiUrl } from "@/config/api";
+// Ya no necesitamos getApiUrl aquí porque usaremos rutas internas directas
+// import { getApiUrl } from "@/config/api";
 
 /**
  * ⚠️ IMPORTANTE
@@ -28,9 +29,11 @@ export const authOptions: NextAuthOptions = {
         try {
           /**
            * 🔐 LOGIN → auth-service
+           * CORRECCIÓN: Usamos la URL INTERNA de Docker directamente.
+           * Esto evita que el servidor se pierda intentando salir a internet.
            */
-          const loginUrl = getApiUrl("auth", "/login");
-          console.log("🔐 Login auth-service:", loginUrl);
+          const loginUrl = "http://auth-service:4004/login";
+          console.log("🔐 Login auth-service (Internal):", loginUrl);
 
           const response = await fetch(loginUrl, {
             method: "POST",
@@ -42,12 +45,13 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!response.ok) {
-            console.error("❌ Login fallido:", response.status);
+            console.error("❌ Login fallido status:", response.status);
             return null;
           }
 
           const data = await response.json();
-          const userBasic = data.user ?? data;
+          // A veces la respuesta viene anidada en data.user o directa
+          const userBasic = data.user || data.data?.user || data;
 
           if (!userBasic?.id || !userBasic?.email) {
             console.error("❌ Respuesta inválida auth-service:", data);
@@ -56,20 +60,28 @@ export const authOptions: NextAuthOptions = {
 
           /**
            * 👤 Obtener datos completos → users-service
+           * CORRECCIÓN: Usamos la URL INTERNA de Docker también aquí.
            */
           try {
-            const usersUrl = getApiUrl("users", `/${userBasic.id}`);
-            console.log("👤 Fetch users-service:", usersUrl);
+            // Nota: users-service corre en el puerto 4007
+            const usersUrl = `http://users-service:4007/profile/${userBasic.id}`;
+            // Ojo: Si tu ruta es /users/:id, usa esta:
+            // const usersUrl = `http://users-service:4007/${userBasic.id}`;
+
+            console.log("👤 Fetch users-service (Internal):", usersUrl);
 
             const userRes = await fetch(usersUrl);
 
             if (userRes.ok) {
-              const userDetails = await userRes.json();
+              const userData = await userRes.json();
+              // Ajuste por si viene envuelto en { success: true, data: { user: ... } }
+              const userDetails =
+                userData.data?.user || userData.user || userData;
 
               return {
-                id: userDetails.id,
-                email: userDetails.email,
-                name: userDetails.name,
+                id: userDetails.id || userBasic.id,
+                email: userDetails.email || userBasic.email,
+                name: userDetails.name || userBasic.name,
                 career: userDetails.career,
                 semester: userDetails.semester,
                 avatar: userDetails.avatar,
@@ -80,14 +92,14 @@ export const authOptions: NextAuthOptions = {
                 reviewCount: userDetails.reviewCount ?? 0,
               };
             }
-          } catch {
+          } catch (err) {
             console.warn(
-              "⚠️ Users-service no disponible, usando datos básicos"
+              "⚠️ Users-service no disponible o error de red, usando datos básicos"
             );
           }
 
           /**
-           * 🧩 Fallback mínimo
+           * 🧩 Fallback mínimo (Si falla el servicio de usuarios)
            */
           return {
             id: userBasic.id,
@@ -101,7 +113,7 @@ export const authOptions: NextAuthOptions = {
             reviewCount: 0,
           };
         } catch (error: any) {
-          console.error("🔥 Error en authorize:", error.message);
+          console.error("🔥 Error CRÍTICO en authorize:", error.message);
           return null;
         }
       },
@@ -109,7 +121,7 @@ export const authOptions: NextAuthOptions = {
   ],
 
   /**
-   * 🧠 JWT (correcto detrás de NGINX)
+   * 🧠 JWT (correcto detrás de NGINX/ALB)
    */
   session: {
     strategy: "jwt",
@@ -129,7 +141,6 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
-
         token.career = user.career;
         token.semester = user.semester;
         token.avatar = user.avatar;
@@ -139,7 +150,6 @@ export const authOptions: NextAuthOptions = {
         token.rating = user.rating;
         token.reviewCount = user.reviewCount;
       }
-
       return token;
     },
 
@@ -147,11 +157,9 @@ export const authOptions: NextAuthOptions = {
       if (!session.user) {
         session.user = {} as any;
       }
-
       session.user.id = token.id as string;
       session.user.email = token.email as string;
       session.user.name = token.name as string;
-
       session.user.career = token.career as string;
       session.user.semester = token.semester as number;
       session.user.avatar = token.avatar as string;
@@ -165,10 +173,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
-  /**
-   * 🔐 Secret definido SIEMPRE (build + runtime)
-   */
   secret: NEXTAUTH_SECRET,
-
   debug: process.env.NODE_ENV === "development",
 };
