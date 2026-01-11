@@ -2,7 +2,7 @@ name: Deploy INFRA (Data Server)
 
 on:
   push:
-    branches: ["main", "feature/infra", "**"]
+    branches: ["main", "feature/infra"]
 
 jobs:
   deploy-infra:
@@ -11,19 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy Data Layer via Bastion
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DATA_PRIVATE_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          proxy_host: ${{ secrets.BASTION_HOST }}
-          proxy_username: ubuntu
-          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            mkdir -p ~/infra
-            echo "DATA_HOST=${{ secrets.DATA_PRIVATE_IP }}" > ~/infra/.env
-
+      # 1. Copiar el archivo compose correcto
       - name: Copy Compose File
         uses: appleboy/scp-action@master
         with:
@@ -33,9 +21,10 @@ jobs:
           proxy_host: ${{ secrets.BASTION_HOST }}
           proxy_username: ubuntu
           proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.data.yaml"
+          source: "docker-compose-data.yml" # NOMBRE NUEVO
           target: "~/infra"
 
+      # 2. Configurar .env y Desplegar
       - name: Start Infra
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -45,8 +34,18 @@ jobs:
           proxy_host: ${{ secrets.BASTION_HOST }}
           proxy_username: ubuntu
           proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Inyectamos secretos reales para que el compose los lea
           script: |
+            mkdir -p ~/infra
             cd ~/infra
-            mv docker-compose.data.yaml docker-compose.yaml
+
+            # Crear .env con las credenciales necesarias
+            echo "POSTGRES_USER=${{ secrets.DB_USER }}" > .env
+            echo "POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> .env
+            echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> .env
+
+            # Renombrar y levantar
+            mv docker-compose-data.yml docker-compose.yaml
             docker compose pull
             docker compose up -d

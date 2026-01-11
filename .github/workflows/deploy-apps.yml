@@ -1,15 +1,15 @@
-name: Deploy APPS (App Server)
+name: Deploy APPS (Distributed)
 
 on:
   push:
-    branches: ["main", "**"]
+    branches: ["main"]
 
 env:
   REGISTRY: ghcr.io
   OWNER: ${{ github.repository_owner }}
 
 jobs:
-  # JOB 1: CONSTRUIR Y SUBIR IMAGENES (EN PARALELO)
+  # JOB 1: CONSTRUIR (Igual que antes)
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
@@ -18,7 +18,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # LISTA DE TUS SERVICIOS Y SUS CARPETAS
         service:
           - name: auth-service
             path: ./services/auth-service
@@ -42,29 +41,20 @@ jobs:
             path: ./services/chat-service
           - name: frontend
             path: ./frontend
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Poner el nombre en minúsculas para evitar errores de Docker
       - name: Downcase Image Name
-        run: |
-          echo "IMAGE_NAME=${REGISTRY}/${OWNER,,}/${{ matrix.service.name }}:latest" >> $GITHUB_ENV
-
+        run: echo "IMAGE_NAME=${REGISTRY}/${OWNER,,}/${{ matrix.service.name }}:latest" >> $GITHUB_ENV
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker-container
-
-      - name: Build and Push ${{ matrix.service.name }}
+      - name: Build and Push
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.path }}
@@ -73,50 +63,88 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # JOB 2: DESPLEGAR EN EL APP SERVER
-  deploy:
+  # JOB 2: DESPLEGAR EN NODO 1 (Frontend + Auth)
+  deploy-node-1:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Copy Compose to App Server
+      - name: Copy Compose Node 1
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.APP_PRIVATE_IP }}
+          host: ${{ secrets.NODE_1_PRIVATE_IP }} # IP NUEVA
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           proxy_host: ${{ secrets.BASTION_HOST }}
           proxy_username: ubuntu
           proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.app.yaml"
+          source: "docker-compose-node1.yml"
           target: "~/apps"
 
-      - name: Deploy
+      - name: Deploy Node 1
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.APP_PRIVATE_IP }}
+          host: ${{ secrets.NODE_1_PRIVATE_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           proxy_host: ${{ secrets.BASTION_HOST }}
           proxy_username: ubuntu
           proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Pasamos variables para que docker-compose sepa qué usuario usar
-          envs: OWNER
           script: |
-            # Variable para el nombre del dueño del repo en minúsculas
             export GITHUB_REPOSITORY_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-
-            # Login para descargar imágenes privadas
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            mkdir -p ~/apps
-            cd ~/apps
-            mv docker-compose.app.yaml docker-compose.yaml
+            mkdir -p ~/apps && cd ~/apps
+            # Usamos el archivo de Node 1
+            mv docker-compose-node1.yml docker-compose.yaml
 
-            # Crear .env con secretos
-            echo "${{ secrets.ENV_FILE }}" > .env
+            # El secreto ENV_FILE_NODE1 debe tener DB_HOST=db.internal.app
+            echo "${{ secrets.ENV_FILE_COMMON }}" > .env
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+
+  # JOB 3: DESPLEGAR EN NODO 2 (Logica de Negocio)
+  deploy-node-2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy Compose Node 2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.NODE_2_PRIVATE_IP }} # IP NUEVA
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose-node2.yml"
+          target: "~/apps"
+
+      - name: Deploy Node 2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.NODE_2_PRIVATE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.BASTION_HOST }}
+          proxy_username: ubuntu
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            export GITHUB_REPOSITORY_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            mkdir -p ~/apps && cd ~/apps
+            # Usamos el archivo de Node 2
+            mv docker-compose-node2.yml docker-compose.yaml
+
+            echo "${{ secrets.ENV_FILE_COMMON }}" > .env
 
             docker compose pull
             docker compose up -d --remove-orphans

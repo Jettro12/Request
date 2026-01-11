@@ -12,38 +12,43 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# --- 0. CONFIGURACIÓN COMÚN (Script de instalación) ---
-# Definimos el script de instalación una sola vez para usarlo en App y Data
-locals {
-  docker_install_script = <<-EOF
-              #!/bin/bash
-              sudo apt-get update
-              sudo apt-get install -y ca-certificates curl gnupg
-              sudo install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-              sudo chmod a+r /etc/apt/keyrings/docker.gpg
-              echo \
-                "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-                "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
-                sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo apt-get update
-              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-              sudo usermod -aG docker ubuntu
-              # Crear directorio de despliegue por defecto
-              mkdir -p /home/ubuntu/deploy
-              chown ubuntu:ubuntu /home/ubuntu/deploy
-              EOF
+# --- 0. OBTENER DATOS DE LA RED POR DEFECTO ---
+# Esto busca tu VPC por defecto automáticamente para configurar el DNS
+data "aws_vpc" "default" {
+  default = true
 }
 
-# --- 1. LLAVES SSH ---
+# --- 1. CONFIGURACIÓN COMÚN (Script) ---
+locals {
+  docker_install_script = <<-EOF
+    #!/bin/bash
+    set -e
+    apt-get update
+    apt-get install -y ca-certificates curl gnupg lsb-release
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    usermod -aG docker ubuntu
+    mkdir -p /home/ubuntu/deploy
+    chown ubuntu:ubuntu /home/ubuntu/deploy
+    systemctl enable docker
+    systemctl start docker
+  EOF
+}
 
+# --- 2. LLAVES SSH ---
 resource "tls_private_key" "pk" {
   algorithm = "RSA"
   rsa_bits  = 4096
 }
 
 resource "aws_key_pair" "kp" {
-  key_name   = "my-app-key"
+  key_name   = "my-app-key-dns" 
   public_key = tls_private_key.pk.public_key_openssh
 }
 
@@ -53,164 +58,183 @@ resource "local_file" "ssh_key" {
   file_permission = "0400"
 }
 
-# --- 2. GRUPOS DE SEGURIDAD ---
+# --- 3. DNS PRIVADO (LA MAGIA DE LAS IPs) ---
+# Crea un dominio privado solo visible dentro de tus servidores AWS
+resource "aws_route53_zone" "private" {
+  name = "internal.app" # Tu dominio inventado
 
-# A. Bastion SG (Entrada SSH desde internet)
+  vpc {
+    vpc_id = data.aws_vpc.default.id
+  }
+}
+
+# --- 4. GRUPOS DE SEGURIDAD ---
+
 resource "aws_security_group" "bastion_sg" {
   name        = "bastion_sg"
   description = "Permitir SSH entrada"
-
   ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# B. App SG (Web publica, SSH desde Bastion)
 resource "aws_security_group" "app_sg" {
   name        = "app_sg"
-  description = "Web publica y SSH interno"
+  description = "Web, APIs y comunicacion interna"
 
-  # SSH solo desde el Bastion
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
+  ingress { # SSH desde Bastion
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
     security_groups = [aws_security_group.bastion_sg.id]
   }
-
-  # HTTP Publico
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
+  ingress { # HTTP
+    from_port = 80
+    to_port = 80
+    protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  # HTTPS Publico (Opcional si configuras SSL luego)
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
+  ingress { # Microservicios
+    from_port = 4000
+    to_port = 4010
+    protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
+  ingress { # Comunicación Interna entre Nodos
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    self = true 
+  }
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# C. Data SG (Solo accesible desde App Server y Bastion)
 resource "aws_security_group" "data_sg" {
   name        = "data_sg"
-  description = "Base de datos y Mensajeria interna"
-
-  # Permitir TODO el tráfico TCP que venga del App Server
-  # (Postgres 5432, Redis 6379, Kafka 9092, etc.)
+  description = "Base de datos interna"
   ingress {
-    from_port       = 0
-    to_port         = 65535
-    protocol        = "tcp"
+    from_port = 0
+    to_port = 65535
+    protocol = "tcp"
     security_groups = [aws_security_group.app_sg.id]
   }
-
-  # Permitir SSH desde el Bastion (para depuración)
   ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
     security_groups = [aws_security_group.bastion_sg.id]
   }
-
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# --- 3. INSTANCIAS ---
+# --- 5. INSTANCIAS ---
 
-# A. Bastion Host
 resource "aws_instance" "bastion" {
-  ami           = "ami-04b70fa74e45c3917" # Ubuntu 24.04 us-east-1
-  instance_type = "t3.micro"
+  ami           = "ami-04b70fa74e45c3917"
+  instance_type = "t3.nano" # Bastion barato
   key_name      = aws_key_pair.kp.key_name
   vpc_security_group_ids = [aws_security_group.bastion_sg.id]
-
-  tags = { Name = "Bastion-JumpBox" }
+  tags = { Name = "Bastion" }
 }
 
-# B. Data Server (Backend Infra: BD, Kafka, Redis)
 resource "aws_instance" "data_server" {
   ami           = "ami-04b70fa74e45c3917"
-  instance_type = "t3.medium" # Más RAM para Kafka/Postgres
+  instance_type = "t3.small" # BD estable
   key_name      = aws_key_pair.kp.key_name
   vpc_security_group_ids = [aws_security_group.data_sg.id]
-  
   user_data = local.docker_install_script
-
   tags = { Name = "Data-Server" }
 }
 
-# C. App Server (Microservicios + Frontend)
-resource "aws_instance" "app_server" {
+resource "aws_instance" "app_node_1" {
   ami           = "ami-04b70fa74e45c3917"
-  instance_type = "t3.medium"
+  instance_type = "t3.small" # Apps estables
   key_name      = aws_key_pair.kp.key_name
   vpc_security_group_ids = [aws_security_group.app_sg.id]
-
   user_data = local.docker_install_script
-
-  tags = { Name = "App-Server" }
+  tags = { Name = "App-Node-1" }
 }
 
-# --- 4. NETWORKING AVANZADO ---
+resource "aws_instance" "app_node_2" {
+  ami           = "ami-04b70fa74e45c3917"
+  instance_type = "t3.small" # Apps estables
+  key_name      = aws_key_pair.kp.key_name
+  vpc_security_group_ids = [aws_security_group.app_sg.id]
+  user_data = local.docker_install_script
+  tags = { Name = "App-Node-2" }
+}
 
-# IP Elástica para el App Server (Para que el Frontend siempre apunte a la misma IP)
-resource "aws_eip" "app_eip" {
-  instance = aws_instance.app_server.id
+# --- 6. REGISTROS DNS AUTOMÁTICOS ---
+
+# Crea el registro "db.internal.app" que apunta a la IP privada del Data Server
+resource "aws_route53_record" "db" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "db.internal.app"
+  type    = "A"
+  ttl     = "300"
+  records = [aws_instance.data_server.private_ip]
+}
+
+# Crea "node1.internal.app"
+resource "aws_route53_record" "node1" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "node1.internal.app"
+  type    = "A"
+  ttl     = "300"
+  records = [aws_instance.app_node_1.private_ip]
+}
+
+# Crea "node2.internal.app"
+resource "aws_route53_record" "node2" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "node2.internal.app"
+  type    = "A"
+  ttl     = "300"
+  records = [aws_instance.app_node_2.private_ip]
+}
+
+# --- 7. IPs PÚBLICAS (EIP) ---
+# Solo las necesitamos si expones servicios al internet público directamente
+resource "aws_eip" "node_1_eip" {
+  instance = aws_instance.app_node_1.id
   domain   = "vpc"
-  
-  tags = { Name = "App-Elastic-IP" }
 }
 
-# --- 5. OUTPUTS (Lo que necesitas para GitHub y .env) ---
-
-output "bastion_public_ip" {
-  value = aws_instance.bastion.public_ip
-  description = "IP Publica del Bastion. Usar en GitHub Secret: BASTION_HOST"
+resource "aws_eip" "node_2_eip" {
+  instance = aws_instance.app_node_2.id
+  domain   = "vpc"
 }
 
-output "app_public_ip_fija" {
-  value = aws_eip.app_eip.public_ip
-  description = "IP Publica FINAL. Usar en .env local (NEXT_PUBLIC_API) y GitHub Secret"
+# --- 8. OUTPUTS ---
+
+output "dns_names_internos" {
+  value = "Tus servidores se ven entre ellos como: db.internal.app, node1.internal.app, node2.internal.app"
 }
 
-output "app_private_ip" {
-  value = aws_instance.app_server.private_ip
-  description = "IP Privada App. Usar en GitHub Secret: APP_HOST"
-}
-
-output "data_private_ip" {
-  value = aws_instance.data_server.private_ip
-  description = "IP Privada Data. Usar en GitHub Secret: DATA_HOST y en .env como host de DB/Kafka"
-}
-
-output "private_key_pem" {
-  value     = tls_private_key.pk.private_key_pem
-  sensitive = true
+output "public_ips" {
+  value = {
+    DATA_PRIVATE_IP  =aws_instance.data_server.private_ip
+    bastion = aws_instance.bastion.public_ip
+    node1   = aws_eip.node_1_eip.public_ip
+    node2   = aws_eip.node_2_eip.public_ip
+  }
 }

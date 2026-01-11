@@ -6,12 +6,12 @@ services:
     container_name: postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432" # Importante: Exponer puerto para que el App Server pueda entrar
+      - "5432:5432" # Expuesto a la red interna
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -29,8 +29,8 @@ services:
     container_name: rabbitmq
     restart: always
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -55,8 +55,8 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Aquí usamos la IP del servidor de datos para que el App Server sepa a dónde enviar mensajes
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${DATA_HOST}:9092
+      # IMPORTANTE: Usamos el DNS interno que creamos con Terraform
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://db.internal.app:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
 volumes:
