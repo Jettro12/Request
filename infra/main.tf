@@ -282,3 +282,8 @@ output "alb_url" {
 output "bastion_ssh" {
   value = "ssh -i ${var.ssh_key_name}.pem ec2-user@${aws_instance.bastion.public_ip}"
 }
+
+output "asg_name" {
+  description = "Nombre del Auto Scaling Group para el script de refresh"
+  value       = aws_autoscaling_group.app_asg.name
+}
