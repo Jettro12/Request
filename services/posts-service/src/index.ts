@@ -40,14 +40,22 @@ app.get("/health", (_req, res) =>
 );
 
 /* =====================================================
-   POSTS (SIN NGINX, PATHS REALES)
+   POSTS ROUTES (SIN PREFIJO /posts)
+   El Proxy convierte /posts -> /
 ===================================================== */
-app.get("/posts", getPosts); // GET /posts
-app.post("/posts", createPost); // POST /posts
 
-app.get("/posts/:id", getPostById); // GET /posts/:id
-app.put("/posts/:id", updatePost); // PUT /posts/:id
-app.delete("/posts/:id", deletePost); // DELETE /posts/:id
+// Rutas Raíz
+// Frontend: GET /posts -> Backend: GET /
+app.get("/", getPosts);
+
+// Frontend: POST /posts -> Backend: POST /
+app.post("/", createPost);
+
+// Rutas con ID
+// Frontend: GET /posts/:id -> Backend: GET /:id
+app.get("/:id", getPostById);
+app.put("/:id", updatePost);
+app.delete("/:id", deletePost);
 
 /* =====================================================
    SHUTDOWN

@@ -41,15 +41,27 @@ app.get("/health", (_req, res) =>
 );
 
 /* =====================================================
-   USERS (PATHS REALES PARA ALB)
+   USERS ROUTES (SIN PREFIJO /users)
+   El Proxy ya se encarga de dirigir aquí cuando llaman a /users
 ===================================================== */
-app.get("/users/search", searchUsers); // GET /users/search
-app.get("/users/career/:career", getUsersByCareer); // GET /users/career/:career
 
-app.post("/users/profile", createProfile); // POST /users/profile
-app.put("/users/:id/profile", updateProfile); // PUT /users/:id/profile
+// 1. Búsquedas específicas (Deben ir antes de /:id)
+// Frontend: /users/search -> Backend: /search
+app.get("/search", searchUsers);
 
-app.get("/users/:id", getUserProfile); // GET /users/:id
+// Frontend: /users/career/:career -> Backend: /career/:career
+app.get("/career/:career", getUsersByCareer);
+
+// 2. Gestión de Perfil
+// Frontend: /users/profile -> Backend: /profile
+app.post("/profile", createProfile);
+
+// Frontend: /users/:id/profile -> Backend: /:id/profile
+app.put("/:id/profile", updateProfile);
+
+// 3. Obtener por ID (Genérico, va al final)
+// Frontend: /users/:id -> Backend: /:id
+app.get("/:id", getUserProfile);
 
 /* =====================================================
    START
