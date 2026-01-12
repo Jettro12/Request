@@ -40,22 +40,26 @@ app.get("/health", (_req, res) =>
 );
 
 /* =====================================================
-   POSTS ROUTES (SIN PREFIJO /posts)
-   El Proxy convierte /posts -> /
+   POSTS ROUTES
+   Manejamos ambas rutas por seguridad (Proxy vs Directo)
 ===================================================== */
 
-// Rutas Raíz
-// Frontend: GET /posts -> Backend: GET /
+// 1. Rutas Raíz (Lo que envía el Proxy normalmente: /)
 app.get("/", getPosts);
-
-// Frontend: POST /posts -> Backend: POST /
 app.post("/", createPost);
 
-// Rutas con ID
-// Frontend: GET /posts/:id -> Backend: GET /:id
+// 2. Rutas Explícitas (Por si el Proxy envía /posts o trailing slash)
+app.get("/posts", getPosts);
+app.post("/posts", createPost);
+
+// 3. Rutas con ID
 app.get("/:id", getPostById);
 app.put("/:id", updatePost);
 app.delete("/:id", deletePost);
+// Soporte para /posts/:id también
+app.get("/posts/:id", getPostById);
+app.put("/posts/:id", updatePost);
+app.delete("/posts/:id", deletePost);
 
 /* =====================================================
    SHUTDOWN

@@ -8,13 +8,23 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  role      String   @default("user")
-  image     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  role        String   @default("user")
+  image       String?
   
+  // ✅ AGREGAMOS LOS CAMPOS QUE FALTABAN PARA EL PERFIL
+  career      String?
+  semester    Int?
+  bio         String?
+  skills      String[]
+  interests   String[]
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@map("users")
 }
