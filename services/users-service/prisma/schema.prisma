@@ -14,7 +14,7 @@ model User {
   role        String   @default("user")
   image       String?
   
-  // ✅ AGREGAMOS LOS CAMPOS QUE FALTABAN PARA EL PERFIL
+  // ✅ ESTOS SON LOS CAMPOS QUE FALTABAN Y CAUSAN EL ERROR
   career      String?
   semester    Int?
   bio         String?

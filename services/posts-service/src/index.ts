@@ -16,7 +16,6 @@ dotenv.config();
 const PORT = parseInt(process.env.PORT || "4002");
 const app = express();
 
-// 🛡️ CORS
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
@@ -32,62 +31,35 @@ app.use(
 
 app.use(express.json());
 
-/* =====================================================
-   HEALTH
-===================================================== */
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", service: "posts-service" })
 );
 
-/* =====================================================
-   POSTS ROUTES
-   Manejamos ambas rutas por seguridad (Proxy vs Directo)
-===================================================== */
-
-// 1. Rutas Raíz (Lo que envía el Proxy normalmente: /)
+// 👇 AQUÍ ESTÁ EL ARREGLO PARA EL ERROR 405 👇
+// Escuchamos en la raíz (para cuando el proxy funciona bien)
 app.get("/", getPosts);
 app.post("/", createPost);
 
-// 2. Rutas Explícitas (Por si el Proxy envía /posts o trailing slash)
+// Y TAMBIÉN escuchamos en /posts (por si el proxy envía la ruta completa)
 app.get("/posts", getPosts);
 app.post("/posts", createPost);
 
-// 3. Rutas con ID
 app.get("/:id", getPostById);
 app.put("/:id", updatePost);
 app.delete("/:id", deletePost);
-// Soporte para /posts/:id también
-app.get("/posts/:id", getPostById);
-app.put("/posts/:id", updatePost);
-app.delete("/posts/:id", deletePost);
 
-/* =====================================================
-   SHUTDOWN
-===================================================== */
 const shutdown = async () => {
-  console.log("👋 Shutting down posts-service...");
   await disconnectKafka();
   await prisma.$disconnect();
   process.exit(0);
 };
 
 async function start() {
-  try {
-    await prisma.$connect();
-    console.log("✅ Database connected (posts)");
-
-    await connectKafkaProducer();
-
-    app.listen(PORT, "0.0.0.0", () =>
-      console.log(`🚀 Posts service listening on ${PORT}`)
-    );
-
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
-  } catch (error) {
-    console.error("❌ Failed to start posts-service:", error);
-    process.exit(1);
-  }
+  await prisma.$connect();
+  await connectKafkaProducer();
+  app.listen(PORT, "0.0.0.0", () => console.log(`Posts listening on ${PORT}`));
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 start();
