@@ -20,12 +20,12 @@ variable "ssh_key_name" {
 }
 
 variable "my_ip" {
-  description = "Tu IP pública (SOLO los números, sin /32)"
+  description = "Tu IP pública"
   type        = string
 }
 
 ############################################
-# DATA: DEFAULT VPC + SUBNETS
+# DATA
 ############################################
 data "aws_vpc" "default" {
   default = true
@@ -41,8 +41,6 @@ data "aws_subnets" "default" {
 ############################################
 # SECURITY GROUPS
 ############################################
-
-# 1. ALB SG (Abierto a todo el mundo para HTTP)
 resource "aws_security_group" "alb_sg" {
   name   = "alb-sg"
   vpc_id = data.aws_vpc.default.id
@@ -62,7 +60,6 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-# 2. Bastion SG (Solo tu IP puede entrar por SSH)
 resource "aws_security_group" "bastion_sg" {
   name   = "bastion-sg"
   vpc_id = data.aws_vpc.default.id
@@ -71,7 +68,7 @@ resource "aws_security_group" "bastion_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/32"]
+    cidr_blocks = ["0.0.0.0/0"] # Para acceder desde consola AWS y tu IP
   }
 
   egress {
@@ -82,12 +79,10 @@ resource "aws_security_group" "bastion_sg" {
   }
 }
 
-# 3. EC2 App SG (Solo acepta tráfico del ALB y del Bastion)
 resource "aws_security_group" "ec2_sg" {
   name   = "ec2-sg"
   vpc_id = data.aws_vpc.default.id
 
-  # Entrada aplicación (Desde el Balanceador)
   ingress {
     from_port       = 3000
     to_port         = 3000
@@ -95,15 +90,13 @@ resource "aws_security_group" "ec2_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
-  # Entrada SSH (Desde el Bastion)
   ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion_sg.id]
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Acceso SSH global para EC2 Connect
   }
 
-  # Salida (Necesaria para descargar Docker e imágenes)
   egress {
     from_port   = 0
     to_port     = 0
@@ -118,19 +111,14 @@ resource "aws_security_group" "ec2_sg" {
 resource "aws_launch_template" "app_lt" {
   name_prefix   = "app-lt-"
   image_id      = "ami-0c02fb55956c7d316"
-  
-  # RAM: 4GB (Necesaria para Kafka)
   instance_type = "t3.medium"
-  
   key_name      = var.ssh_key_name
 
-  # === DISCO DURO OPTIMIZADO ===
   block_device_mappings {
     device_name = "/dev/xvda"
     ebs {
       volume_size = 30
       volume_type = "gp3"
-      delete_on_termination = true
     }
   }
 
@@ -141,51 +129,31 @@ resource "aws_launch_template" "app_lt" {
 
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    
-    # 1. Instalar Docker
     yum update -y
     amazon-linux-extras install docker -y
     systemctl start docker
     systemctl enable docker
     usermod -aG docker ec2-user
 
-    # 2. Instalar Docker Compose
     curl -L https://github.com/docker/compose/releases/download/v2.25.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
 
-    # 3. Login a GHCR
-    docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
-
-    # 4. Preparar carpeta
     mkdir -p /app
     cd /app
 
-    # 5. Crear archivos desde tu PC local
-    cat << 'SQL' > init.sql
-    ${file("init.sql")}
-    SQL
+    docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
 
     cat << 'COMPOSE' > docker-compose.yml
     ${file("docker-compose.prod.yml")}
     COMPOSE
 
-    # 6. Ajuste memoria virtual (Elastic/Kafka)
-    sysctl -w vm.max_map_count=262144
-
-    # 7. Limpiar sistema
-    docker system prune -a -f
-
-    # 8. Levantar Servicios
-    echo "🚀 Levantando servicios..."
+    docker-compose pull
     docker-compose up -d
 
-    # 9. === AUTOMATIZACIÓN DE BASES DE DATOS ===
-    # Esperamos a que los contenedores estén listos
-    echo "⏳ Esperando 40s para arranque de base de datos..."
-    sleep 40
+    echo "⏳ Esperando 45s para estabilidad de servicios y Supabase..."
+    sleep 45
 
-    echo "🔄 Ejecutando migraciones automáticas en Shared DB..."
-    # Ejecutamos push en cada servicio para crear sus tablas en la DB compartida
+    # Migraciones automáticas
     docker exec auth-service npx prisma db push
     docker exec users-service npx prisma db push
     docker exec posts-service npx prisma db push
@@ -196,13 +164,27 @@ resource "aws_launch_template" "app_lt" {
     docker exec messages-service npx prisma db push
     docker exec conversations-service npx prisma db push
     
-    echo "✅ Despliegue completado con éxito."
+    echo "✅ Sistema sincronizado."
   EOF
   )
 }
 
 ############################################
-# ALB (Load Balancer)
+# BASTION HOST
+############################################
+resource "aws_instance" "bastion" {
+  ami                         = "ami-0c02fb55956c7d316"
+  instance_type               = "t3.micro"
+  key_name                    = var.ssh_key_name
+  subnet_id                   = data.aws_subnets.default.ids[0]
+  vpc_security_group_ids      = [aws_security_group.bastion_sg.id]
+  associate_public_ip_address = true
+  
+  tags = { Name = "Bastion-Host" }
+}
+
+############################################
+# LOAD BALANCER
 ############################################
 resource "aws_lb" "app_alb" {
   name               = "app-alb"
@@ -257,33 +239,16 @@ resource "aws_autoscaling_group" "app_asg" {
 }
 
 ############################################
-# BASTION HOST
-############################################
-resource "aws_instance" "bastion" {
-  ami                         = "ami-0c02fb55956c7d316"
-  instance_type               = "t3.micro"
-  key_name                    = var.ssh_key_name
-  subnet_id                   = data.aws_subnets.default.ids[0]
-  vpc_security_group_ids      = [aws_security_group.bastion_sg.id]
-  associate_public_ip_address = true
-  
-  tags = {
-    Name = "Bastion-Host"
-  }
-}
-
-############################################
 # OUTPUTS
 ############################################
 output "alb_url" {
   value = aws_lb.app_alb.dns_name
 }
 
-output "bastion_ssh" {
-  value = "ssh -i ${var.ssh_key_name}.pem ec2-user@${aws_instance.bastion.public_ip}"
+output "asg_name" {
+  value = aws_autoscaling_group.app_asg.name
 }
 
-output "asg_name" {
-  description = "Nombre del Auto Scaling Group para el script de refresh"
-  value       = aws_autoscaling_group.app_asg.name
+output "bastion_ssh" {
+  value = "ssh -i ${var.ssh_key_name}.pem ec2-user@${aws_instance.bastion.public_ip}"
 }
