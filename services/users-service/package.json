@@ -6,10 +6,10 @@
     "prisma:generate": "prisma generate",
     "dev": "npm run prisma:generate && ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "npm run prisma:generate && tsc -p .",
-    "start": "npm run dev",
     "lint": "eslint src --max-warnings=0",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "start": "npx prisma db push && node dist/index.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
