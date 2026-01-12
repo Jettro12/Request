@@ -41,7 +41,6 @@ export async function getPosts(req: Request, res: Response) {
       where.type = type.toUpperCase();
     }
 
-    // 1. Obtener posts SIN relaciones (porque no existen)
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,
@@ -52,7 +51,6 @@ export async function getPosts(req: Request, res: Response) {
       prisma.post.count({ where }),
     ]);
 
-    // 2. Enriquecer posts con datos mock de usuarios
     const postsWithMockUsers = posts.map((post) => ({
       ...post,
       author: mockUsers[post.authorId] || {
@@ -76,7 +74,11 @@ export async function getPosts(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    console.error("Error in getPosts", error);
+    if (error instanceof Error) {
+      console.error("Error in getPosts:", error.message);
+    } else {
+      console.error("Error in getPosts:", error);
+    }
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
@@ -84,10 +86,8 @@ export async function getPosts(req: Request, res: Response) {
 // Versión simplificada de ensureUserExists
 async function ensureUserExists(userId: string, userData?: any) {
   try {
-    // Solo registrar en logs para mock
     console.log(`👤 Mock user ${userId} referenced`);
 
-    // Datos mock para el usuario
     return {
       id: userId,
       email: userData?.email || `${userId}@example.com`,
@@ -98,7 +98,11 @@ async function ensureUserExists(userId: string, userData?: any) {
       skills: userData?.skills || [],
     };
   } catch (error) {
-    console.warn(`⚠️ Mock user ${userId}:`, error.message);
+    if (error instanceof Error) {
+      console.warn(`⚠️ Mock user ${userId}:`, error.message);
+    } else {
+      console.warn(`⚠️ Mock user ${userId}:`, error);
+    }
     return null;
   }
 }
@@ -123,13 +127,11 @@ export async function createPost(req: Request, res: Response) {
 
     console.log(`📝 Creating post for user: ${authorId}`);
 
-    // Obtener datos mock del usuario
     const mockUser = await ensureUserExists(authorId, {
       email: authorEmail,
       name: authorName,
     });
 
-    // Crear el post SIN incluir relación
     const post = await prisma.post.create({
       data: {
         title,
@@ -141,7 +143,6 @@ export async function createPost(req: Request, res: Response) {
       },
     });
 
-    // Publish event to Kafka
     await producer.send({
       topic: POSTS_TOPIC,
       messages: [
@@ -152,23 +153,24 @@ export async function createPost(req: Request, res: Response) {
       ],
     });
 
-    // Retornar post con usuario mock
-    const postWithAuthor = {
-      ...post,
-      author: mockUser,
-    };
-
     return res.status(201).json({
       message: "Post created successfully",
-      post: postWithAuthor,
+      post: {
+        ...post,
+        author: mockUser,
+      },
     });
   } catch (error) {
-    console.error("Error in createPost:", error);
+    if (error instanceof Error) {
+      console.error("Error in createPost:", error.message);
+    } else {
+      console.error("Error in createPost:", error);
+    }
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
-// GET /posts/:id - get single post (VERSIÓN CON MOCK)
+// GET /posts/:id
 export async function getPostById(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -181,27 +183,30 @@ export async function getPostById(req: Request, res: Response) {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    // Añadir usuario mock
-    const postWithAuthor = {
-      ...post,
-      author: mockUsers[post.authorId] || {
-        id: post.authorId,
-        name: `Usuario ${post.authorId.substring(0, 8)}`,
-        career: "No especificada",
-        semester: 0,
-        rating: 0,
-        skills: [],
+    return res.json({
+      post: {
+        ...post,
+        author: mockUsers[post.authorId] || {
+          id: post.authorId,
+          name: `Usuario ${post.authorId.substring(0, 8)}`,
+          career: "No especificada",
+          semester: 0,
+          rating: 0,
+          skills: [],
+        },
       },
-    };
-
-    return res.json({ post: postWithAuthor });
+    });
   } catch (error) {
-    console.error("Error in getPostById", error);
+    if (error instanceof Error) {
+      console.error("Error in getPostById:", error.message);
+    } else {
+      console.error("Error in getPostById:", error);
+    }
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
 
-// PUT /posts/:id - update post (VERSIÓN CON MOCK)
+// PUT /posts/:id
 export async function updatePost(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -211,7 +216,6 @@ export async function updatePost(req: Request, res: Response) {
       return res.status(400).json({ error: "userId is required" });
     }
 
-    // Verificar que el post existe y pertenece al usuario
     const existingPost = await prisma.post.findUnique({ where: { id } });
 
     if (!existingPost) {
@@ -222,7 +226,6 @@ export async function updatePost(req: Request, res: Response) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Actualizar el post SIN relación
     const updatedPost = await prisma.post.update({
       where: { id },
       data: {
@@ -234,7 +237,6 @@ export async function updatePost(req: Request, res: Response) {
       },
     });
 
-    // Publish event to Kafka
     await producer.send({
       topic: POSTS_TOPIC,
       messages: [
@@ -245,30 +247,24 @@ export async function updatePost(req: Request, res: Response) {
       ],
     });
 
-    // Añadir usuario mock
-    const postWithAuthor = {
-      ...updatedPost,
-      author: mockUsers[existingPost.authorId] || {
-        id: existingPost.authorId,
-        name: `Usuario ${existingPost.authorId.substring(0, 8)}`,
-        career: "No especificada",
-        semester: 0,
-        rating: 0,
-        skills: [],
-      },
-    };
-
     return res.json({
       message: "Post updated successfully",
-      post: postWithAuthor,
+      post: {
+        ...updatedPost,
+        author: mockUsers[existingPost.authorId],
+      },
     });
   } catch (error) {
-    console.error("Error in updatePost", error);
+    if (error instanceof Error) {
+      console.error("Error in updatePost:", error.message);
+    } else {
+      console.error("Error in updatePost:", error);
+    }
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
 
-// DELETE /posts/:id - delete post (igual - no necesita cambios)
+// DELETE /posts/:id
 export async function deletePost(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -290,7 +286,6 @@ export async function deletePost(req: Request, res: Response) {
 
     await prisma.post.delete({ where: { id } });
 
-    // Publish event to Kafka
     await producer.send({
       topic: POSTS_TOPIC,
       messages: [
@@ -303,7 +298,11 @@ export async function deletePost(req: Request, res: Response) {
 
     return res.json({ success: true, message: "Post deleted" });
   } catch (error) {
-    console.error("Error in deletePost", error);
+    if (error instanceof Error) {
+      console.error("Error in deletePost:", error.message);
+    } else {
+      console.error("Error in deletePost:", error);
+    }
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 }
