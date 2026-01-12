@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ✅ MODELO MAESTRO DE USUARIO (Incluye perfil)
+// ✅ MODELO MAESTRO (CON ROLE)
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -15,7 +15,10 @@ model User {
   password      String?
   image         String?
   
-  // Datos de Perfil (Compartidos con users-service)
+  // 👇 CAMPO AGREGADO
+  role          String    @default("user") 
+
+  // Datos de Perfil
   career        String?
   semester      Int?
   bio           String?
@@ -27,11 +30,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // Relaciones de Auth (NextAuth)
+  // Relaciones de Auth
   accounts      Account[]
   sessions      Session[]
 
-  @@map("users") // Mapea a la tabla física "users"
+  @@map("users")
 }
 
 model Account {

@@ -7,15 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ✅ MODELO MAESTRO DE USUARIO (Copia exacta de Auth)
+// ✅ MODELO MAESTRO (CON ROLE)
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String?
-  // Password e image pueden ser opcionales aquí si no los usas, 
-  // pero mejor dejarlos igual para evitar conflictos de schema.
-  password      String?   
+  password      String?
   image         String?
+  
+  // 👇 CAMPO AGREGADO PARA CORREGIR EL ERROR DE BUILD
+  role          String    @default("user") 
   
   // Datos de Perfil
   career        String?
@@ -29,6 +30,5 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // No necesitamos Accounts/Sessions aquí, solo el User
-  @@map("users") // Se conecta a la MISMA tabla que Auth
+  @@map("users")
 }
