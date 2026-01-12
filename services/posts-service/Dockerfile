@@ -23,5 +23,6 @@ RUN npx prisma generate
 # Copiar el resto del código
 COPY . .
 
+RUN npm run build
 EXPOSE 4002
 CMD ["npm", "start"]

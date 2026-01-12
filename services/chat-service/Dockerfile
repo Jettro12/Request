@@ -17,5 +17,7 @@ RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm inst
 # Copiar el resto del código
 COPY . .
 
+RUN npm run build
+
 EXPOSE 4010
 CMD ["npm", "start"]
