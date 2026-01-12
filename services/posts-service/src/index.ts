@@ -32,27 +32,28 @@ app.use(
 
 app.use(express.json());
 
-// 👇 RUTAS ALINEADAS CON NGINX 👇
-// NGINX rewrite: /posts/ → / (antes de pasar al servicio)
-// Por lo tanto, las rutas deben ser RAÍZ (/)
-
-// 1. Health check
-app.get("/health", (req, res) =>
+/* =====================================================
+   HEALTH
+===================================================== */
+app.get("/health", (_req, res) =>
   res.json({ status: "ok", service: "posts-service" })
 );
 
-// 2. Rutas ROOT (NGINX rewrite /posts/ → /)
-app.get("/", getPosts); // GET / → GET /posts (via NGINX)
-app.post("/", createPost); // POST / → POST /posts (via NGINX)
+/* =====================================================
+   POSTS (SIN NGINX, PATHS REALES)
+===================================================== */
+app.get("/posts", getPosts); // GET /posts
+app.post("/posts", createPost); // POST /posts
 
-// 3. Rutas con parámetros
-app.get("/:id", getPostById); // GET /:id → GET /posts/:id (via NGINX)
-app.put("/:id", updatePost); // PUT /:id → PUT /posts/:id (via NGINX)
-app.delete("/:id", deletePost); // DELETE /:id → DELETE /posts/:id (via NGINX)
+app.get("/posts/:id", getPostById); // GET /posts/:id
+app.put("/posts/:id", updatePost); // PUT /posts/:id
+app.delete("/posts/:id", deletePost); // DELETE /posts/:id
 
-// Manejo de señales para desconexión limpia
+/* =====================================================
+   SHUTDOWN
+===================================================== */
 const shutdown = async () => {
-  console.log("👋 Shutting down gracefully...");
+  console.log("👋 Shutting down posts-service...");
   await disconnectKafka();
   await prisma.$disconnect();
   process.exit(0);
@@ -60,23 +61,19 @@ const shutdown = async () => {
 
 async function start() {
   try {
-    // Conectar a la base de datos
     await prisma.$connect();
-    console.log("✅ Database connected");
+    console.log("✅ Database connected (posts)");
 
-    // Conectar a Kafka
     await connectKafkaProducer();
 
-    // Iniciar servidor
     app.listen(PORT, "0.0.0.0", () =>
-      console.log(`🚀 Posts service listening on port ${PORT}`)
+      console.log(`🚀 Posts service listening on ${PORT}`)
     );
 
-    // Capturar señales de terminación
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
   } catch (error) {
-    console.error("❌ Failed to start the server:", error);
+    console.error("❌ Failed to start posts-service:", error);
     process.exit(1);
   }
 }

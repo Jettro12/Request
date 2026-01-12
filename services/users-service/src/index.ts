@@ -1,5 +1,3 @@
-import { eventConsumer } from "./events/consumer";
-import UserService from "./services/userService";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -11,12 +9,15 @@ import {
   createProfile,
   getUsersByCareer,
 } from "./controllers/usersController";
+import { eventConsumer } from "./events/consumer";
+import UserService from "./services/userService";
 
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || "4007");
 const app = express();
 
+// 🛡️ CORS
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
@@ -32,42 +33,48 @@ app.use(
 
 app.use(express.json());
 
-// Rutas
-app.get("/health", (req, res) =>
+/* =====================================================
+   HEALTH
+===================================================== */
+app.get("/health", (_req, res) =>
   res.json({ status: "ok", service: "users-service" })
 );
 
-app.get("/search", searchUsers);
-app.get("/career/:career", getUsersByCareer);
-app.post("/profile", createProfile);
-app.put("/:id/profile", updateProfile);
-app.get("/:id", getUserProfile);
+/* =====================================================
+   USERS (PATHS REALES PARA ALB)
+===================================================== */
+app.get("/users/search", searchUsers); // GET /users/search
+app.get("/users/career/:career", getUsersByCareer); // GET /users/career/:career
 
+app.post("/users/profile", createProfile); // POST /users/profile
+app.put("/users/:id/profile", updateProfile); // PUT /users/:id/profile
+
+app.get("/users/:id", getUserProfile); // GET /users/:id
+
+/* =====================================================
+   START
+===================================================== */
 async function start() {
   try {
     await prisma.$connect();
-    console.log("✅ Connected to usersdb");
+    console.log("✅ Connected to users database");
 
-    // Crear instancia de UserService
     const userService = new UserService(prisma);
     console.log("✅ UserService initialized");
 
-    // Iniciar RabbitMQ consumer si está disponible
-    if (eventConsumer && typeof eventConsumer.startConsuming === "function") {
+    if (eventConsumer?.startConsuming) {
       try {
         await eventConsumer.startConsuming(userService);
         console.log("✅ RabbitMQ consumer started");
-      } catch (error: any) {
-        console.log("⚠️  RabbitMQ consumer failed:", error.message);
+      } catch (err: any) {
+        console.warn("⚠️ RabbitMQ consumer not running:", err.message);
       }
-    } else {
-      console.log("⚠️  Running without RabbitMQ event sync");
     }
 
     app.listen(PORT, "0.0.0.0", () =>
-      console.log(`🚀 Users service listening on port ${PORT}`)
+      console.log(`🚀 Users service listening on ${PORT}`)
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Failed to start users-service:", error);
     process.exit(1);
   }
