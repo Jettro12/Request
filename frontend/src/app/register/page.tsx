@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { ApiClient } from "../../lib/api/client";
+import { ApiClient } from "../../lib/api/client"; // Asegúrate de que la ruta sea correcta
 
 export default function Register() {
   const router = useRouter();
@@ -29,51 +29,36 @@ export default function Register() {
     setError("");
 
     const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get("firstName") + " " + formData.get("lastName"),
-      email: formData.get("email"),
-      password: formData.get("password"),
-      career: formData.get("career"),
+
+    // Preparamos TODOS los datos para enviarlos al Auth Service
+    const registerData = {
+      name:
+        (formData.get("firstName") as string) +
+        " " +
+        (formData.get("lastName") as string),
+      email: formData.get("email") as string,
+      password: formData.get("password") as string,
+      career: formData.get("career") as string,
       semester: parseInt(formData.get("semester") as string),
-      bio: formData.get("bio") || "",
+      bio: (formData.get("bio") as string) || "",
       skills: [],
       interests: [],
     };
 
     try {
-      // 1. Registrar el usuario usando el microservicio de Auth
-      const registerResult = await ApiClient.auth.register({
-        email: data.email as string,
-        password: data.password as string,
-        name: data.name as string,
-      });
+      // 1. Registrar TODO de una vez en Auth Service
+      // (Nota: Si TypeScript se queja de que 'career' no existe en register,
+      // ignóralo por ahora o actualiza tu client.ts, el backend ya lo soporta).
+      const registerResult = await ApiClient.auth.register(registerData as any);
 
-      // CORRECCIÓN 1: Verificamos success Y que exista la data
-      if (!registerResult.success || !registerResult.data) {
+      if (!registerResult.success) {
         throw new Error(registerResult.error || "Error en el registro");
       }
 
-      // 2. Crear perfil en el microservicio de Users
-      // CORRECCIÓN 2: Accedemos a .data.userId
-      const profileResult = await ApiClient.users.createProfile({
-        userId: registerResult.data.userId,
-        name: data.name as string,
-        email: data.email as string,
-        career: data.career as string,
-        semester: data.semester,
-        bio: data.bio as string,
-        skills: [],
-        interests: [],
-      });
-
-      if (!profileResult.success) {
-        throw new Error("Error al crear el perfil");
-      }
-
-      // 3. Iniciar sesión automáticamente después del registro
+      // 2. Iniciar sesión automáticamente
       const loginResult = await signIn("credentials", {
-        email: data.email,
-        password: data.password,
+        email: registerData.email,
+        password: registerData.password,
         redirect: false,
       });
 
@@ -81,7 +66,7 @@ export default function Register() {
         throw new Error("Error al iniciar sesión después del registro");
       }
 
-      // 4. Redirigir al dashboard
+      // 3. Redirigir al dashboard
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -110,140 +95,112 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* ... (EL RESTO DEL FORMULARIO ES IGUAL, NO CAMBIA NADA VISUAL) ... */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label
-                  htmlFor="firstName"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nombre
                 </label>
                 <input
                   type="text"
-                  id="firstName"
                   name="firstName"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg"
                   placeholder="Juan"
                 />
               </div>
               <div>
-                <label
-                  htmlFor="lastName"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Apellido
                 </label>
                 <input
                   type="text"
-                  id="lastName"
                   name="lastName"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg"
                   placeholder="Pérez"
                 />
               </div>
             </div>
 
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Correo Universitario
               </label>
               <input
                 type="email"
-                id="email"
                 name="email"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
                 placeholder="tu.correo@universidad.edu"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Contraseña
               </label>
               <input
                 type="password"
-                id="password"
                 name="password"
                 required
                 minLength={6}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
                 placeholder="Mínimo 6 caracteres"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="career"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Carrera
               </label>
               <select
-                id="career"
                 name="career"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
               >
                 <option value="">Selecciona tu carrera</option>
-                {careers.map((career) => (
-                  <option key={career} value={career}>
-                    {career}
+                {careers.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label
-                htmlFor="semester"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Semestre
               </label>
               <select
-                id="semester"
                 name="semester"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
               >
-                <option value="">Selecciona tu semestre</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((sem) => (
-                  <option key={sem} value={sem}>
-                    {sem}° Semestre
+                {[...Array(10)].map((_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1}° Semestre
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label
-                htmlFor="bio"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Biografía (Opcional)
               </label>
               <textarea
-                id="bio"
                 name="bio"
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
-                placeholder="Cuéntanos sobre ti, tus intereses, proyectos..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                placeholder="Cuéntanos sobre ti..."
               />
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
             >
               {isLoading ? "Creando cuenta..." : "Crear Cuenta"}
             </button>

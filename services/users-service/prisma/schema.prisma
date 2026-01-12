@@ -7,24 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ✅ MODELO MAESTRO DE USUARIO (Copia exacta de Auth)
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  name        String?
-  role        String   @default("user")
-  image       String?
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  // Password e image pueden ser opcionales aquí si no los usas, 
+  // pero mejor dejarlos igual para evitar conflictos de schema.
+  password      String?   
+  image         String?
   
-  // ✅ ESTOS SON LOS CAMPOS QUE FALTABAN Y CAUSAN EL ERROR
-  career      String?
-  semester    Int?
-  bio         String?
-  skills      String[]
-  interests   String[]
-  rating      Float    @default(0)
-  reviewCount Int      @default(0)
+  // Datos de Perfil
+  career        String?
+  semester      Int?
+  bio           String?
+  skills        String[]
+  interests     String[]
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("users")
+  // No necesitamos Accounts/Sessions aquí, solo el User
+  @@map("users") // Se conecta a la MISMA tabla que Auth
 }

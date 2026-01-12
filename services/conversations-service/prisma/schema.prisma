@@ -8,15 +8,14 @@ datasource db {
 }
 
 model Conversation {
-  id          String    @id @default(cuid())
-  participantIds String[] // Array de IDs de usuarios
-  lastMessage String?   // Último mensaje (podría ser relación)
-  unreadCount Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String   @id @default(cuid())
+  participantIds String[]
+  lastMessage    String?
+  unreadCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
   
   @@map("conversations")
-  
   @@index([participantIds])
 }
 
@@ -29,7 +28,6 @@ model ConversationParticipant {
   
   @@unique([conversationId, userId])
   @@map("conversation_participants")
-  
   @@index([userId])
   @@index([conversationId])
 }

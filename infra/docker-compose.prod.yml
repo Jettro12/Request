@@ -17,9 +17,10 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      # 👇 ESTO CREA LA BASE DE DATOS AUTOMÁTICAMENTE
+      POSTGRES_DB: request_db
     volumes:
       - pg_data:/var/lib/postgresql/data
-      # ESTA LINEA ES LA CLAVE PARA QUE FUNCIONE:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -67,13 +68,14 @@ services:
       - microservices-net
 
   # ===============================
-  # MICROSERVICIOS
+  # MICROSERVICIOS (TODOS APUNTAN A request_db)
   # ===============================
   auth-service:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/authdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
       PORT: 4004
     depends_on:
@@ -86,7 +88,8 @@ services:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/usersdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4007
     depends_on:
       postgres:
@@ -98,7 +101,8 @@ services:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postsdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       KAFKA_BROKER: kafka:9092
       PORT: 4002
     depends_on:
@@ -111,7 +115,8 @@ services:
     image: ghcr.io/jettro12/requests-service:latest
     container_name: requests-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestsdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4003
     depends_on:
       postgres:
@@ -123,7 +128,8 @@ services:
     image: ghcr.io/jettro12/notification-service:latest
     container_name: notification-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/notificationsdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4001
     depends_on:
       postgres:
@@ -135,7 +141,8 @@ services:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/profiledb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4005
     depends_on:
       postgres:
@@ -147,7 +154,8 @@ services:
     image: ghcr.io/jettro12/ratings-service:latest
     container_name: ratings-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ratingsdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4006
     depends_on:
       postgres:
@@ -159,7 +167,8 @@ services:
     image: ghcr.io/jettro12/messages-service:latest
     container_name: messages-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/messagesdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4008
     depends_on:
       postgres:
@@ -171,7 +180,8 @@ services:
     image: ghcr.io/jettro12/conversations-service:latest
     container_name: conversations-service
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/conversationsdb
+      # 👇 BASE DE DATOS COMPARTIDA
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/request_db?schema=public
       PORT: 4009
     depends_on:
       postgres:
@@ -196,8 +206,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # NOTA: En produccion real, esto deberia ser el DNS del Load Balancer
-      # Pero para que arranque, lo dejamos asi.
       NEXT_PUBLIC_API_BASE_URL: ""
       NEXTAUTH_URL: http://tu-alb-url.us-east-1.elb.amazonaws.com
       NEXTAUTH_SECRET: super-secret-prod

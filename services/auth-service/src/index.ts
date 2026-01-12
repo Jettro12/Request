@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { prisma } from "./prisma";
-import { Prisma } from "@prisma/client"; // Necesario para identificar tipos de error
+import { Prisma } from "@prisma/client";
 
 dotenv.config();
 
@@ -25,45 +25,37 @@ app.use(
 app.use(express.json());
 
 // ==========================================
-// REGISTER ROUTE (CORREGIDA)
+// REGISTER ROUTE (OPTIMIZADA PARA DB COMPARTIDA)
 // ==========================================
 app.post("/register", async (req, res) => {
-  const { name, email, password } = req.body;
+  // 1. Recibimos TODOS los datos del frontend
+  const { name, email, password, career, semester, bio, skills, interests } =
+    req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ error: "missing" });
+    return res.status(400).json({ error: "missing_fields" });
   }
 
   try {
     const hashed = await bcrypt.hash(password, 10);
 
+    // 2. Guardamos TODO de una sola vez (Auth + Perfil)
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashed,
+        career, // ✅ Guardamos carrera directamente
+        semester, // ✅ Guardamos semestre directamente
+        bio, // ✅ Guardamos bio directamente
+        skills: skills || [],
+        interests: interests || [],
       },
     });
 
-    // Intentar crear perfil en users-service para mantener datos sincronizados
-    // No abortar el registro si la creación del perfil falla.
-    (async () => {
-      try {
-        const USERS_SERVICE_URL =
-          process.env.INTERNAL_USERS_SERVICE_URL || "http://users-service:4007";
-        await fetch(`${USERS_SERVICE_URL}/profile`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            name: user.name,
-            email: user.email,
-          }),
-        });
-      } catch (err) {
-        console.warn("Could not create profile in users-service:", err);
-      }
-    })();
+    // 3. 🚀 ELIMINADO: Ya NO llamamos a users-service/profile.
+    // Como la DB es compartida, el users-service ya puede "ver"
+    // estos datos inmediatamente sin hacer nada extra.
 
     res.json({
       user: {
@@ -73,21 +65,18 @@ app.post("/register", async (req, res) => {
       },
     });
   } catch (error) {
-    // Manejo específico de errores de Prisma
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      // P2002: Unique constraint failed (Email duplicado)
       if (error.code === "P2002") {
         return res.status(409).json({ error: "El email ya está registrado" });
       }
     }
-
     console.error("Error en register:", error);
     return res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
 // ==========================================
-// LOGIN ROUTE (CON SEGURIDAD)
+// LOGIN ROUTE
 // ==========================================
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -98,13 +87,11 @@ app.post("/login", async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-
-    // 👇 VALIDACIÓN CRÍTICA
-    if (!user || !user.password) {
+    if (!user) {
       return res.status(401).json({ error: "invalid" });
     }
 
-    const isValid = await bcrypt.compare(password, user.password);
+    const isValid = await bcrypt.compare(password, user.password || "");
     if (!isValid) {
       return res.status(401).json({ error: "invalid" });
     }
@@ -114,6 +101,7 @@ app.post("/login", async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        career: user.career, // Opcional: devolver más datos al login
       },
     });
   } catch (error) {
@@ -122,12 +110,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// ==========================================
-// LOGOUT ROUTE
-// ==========================================
 app.post("/logout", async (req, res) => {
-  // En un sistema JWT, el logout generalmente es manejado en el cliente
-  // eliminando el token. Este endpoint existe para compatibilidad.
   res.json({ success: true, message: "Logged out successfully" });
 });
 
@@ -137,9 +120,11 @@ app.get("/health", (_req, res) => {
 });
 
 async function start() {
-  serverListen();
+  app.listen(PORT, "0.0.0.0", () =>
+    console.log(`Auth service listening on ${PORT}`)
+  );
 
-  // prisma warmup with retries
+  // prisma warmup
   const maxDbRetries = 8;
   let dbAttempt = 0;
   while (dbAttempt < maxDbRetries) {
@@ -149,18 +134,10 @@ async function start() {
       break;
     } catch (err) {
       dbAttempt++;
-      console.warn(
-        `Prisma connect attempt ${dbAttempt} failed: ${err}. Retrying in 2s...`
-      );
+      console.warn(`Prisma connect retry ${dbAttempt}...`);
       await new Promise((r) => setTimeout(r, 2000));
     }
   }
-}
-
-function serverListen() {
-  app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Auth service listening on ${PORT}`)
-  );
 }
 
 start().catch((err) => {

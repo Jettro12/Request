@@ -1,26 +1,24 @@
-// prisma/schema.prisma - notification-service minimal schema
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model Notification {
   id        String   @id @default(cuid())
-  type      String   // e.g. "REQUEST_RECEIVED", "NEW_MESSAGE", "AGREEMENT_ACCEPTED"
-  userId    String   // user who receives the notification (plain string ref)
+  type      String
+  userId    String   // Dueño de la notificación
   title     String
   message   String
-  relatedId String?  // id of related entity (request, message, etc.)
-  senderId  String?  // user who triggered the notification (plain string ref)
+  relatedId String?
+  senderId  String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  // No ORM relations to User model; userId/senderId are plain string references.
-  // To fetch user details, query users-service API directly.
   @@index([userId])
   @@index([createdAt])
+  @@map("notifications")
 }

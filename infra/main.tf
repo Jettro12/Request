@@ -71,7 +71,6 @@ resource "aws_security_group" "bastion_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    # AQUÍ AGREGAMOS EL /32 AUTOMÁTICAMENTE
     cidr_blocks = ["${var.my_ip}/32"]
   }
 
@@ -125,16 +124,15 @@ resource "aws_launch_template" "app_lt" {
   
   key_name      = var.ssh_key_name
 
-  # === NUEVO: AUMENTAR DISCO DURO A 30GB ===
+  # === DISCO DURO OPTIMIZADO ===
   block_device_mappings {
     device_name = "/dev/xvda"
     ebs {
-      volume_size = 30    # 30 GB de espacio
-      volume_type = "gp3" # Disco rápido y moderno
+      volume_size = 30
+      volume_type = "gp3"
       delete_on_termination = true
     }
   }
-  # =========================================
 
   network_interfaces {
     security_groups             = [aws_security_group.ec2_sg.id]
@@ -174,11 +172,31 @@ resource "aws_launch_template" "app_lt" {
     # 6. Ajuste memoria virtual (Elastic/Kafka)
     sysctl -w vm.max_map_count=262144
 
-    # 7. Limpiar sistema para liberar espacio antes de arrancar
+    # 7. Limpiar sistema
     docker system prune -a -f
 
-    # 8. Levantar
+    # 8. Levantar Servicios
+    echo "🚀 Levantando servicios..."
     docker-compose up -d
+
+    # 9. === AUTOMATIZACIÓN DE BASES DE DATOS ===
+    # Esperamos a que los contenedores estén listos
+    echo "⏳ Esperando 40s para arranque de base de datos..."
+    sleep 40
+
+    echo "🔄 Ejecutando migraciones automáticas en Shared DB..."
+    # Ejecutamos push en cada servicio para crear sus tablas en la DB compartida
+    docker exec auth-service npx prisma db push
+    docker exec users-service npx prisma db push
+    docker exec posts-service npx prisma db push
+    docker exec requests-service npx prisma db push
+    docker exec notification-service npx prisma db push
+    docker exec profile-service npx prisma db push
+    docker exec ratings-service npx prisma db push
+    docker exec messages-service npx prisma db push
+    docker exec conversations-service npx prisma db push
+    
+    echo "✅ Despliegue completado con éxito."
   EOF
   )
 }
@@ -202,7 +220,7 @@ resource "aws_lb_target_group" "app_tg" {
   health_check {
     path                = "/"
     port                = "3000"
-    interval            = 60  # Damos más tiempo porque Java es lento en arrancar
+    interval            = 60
     timeout             = 10
     healthy_threshold   = 2
     unhealthy_threshold = 5
@@ -225,9 +243,7 @@ resource "aws_lb_listener" "http" {
 # AUTO SCALING GROUP
 ############################################
 resource "aws_autoscaling_group" "app_asg" {
-  # IMPORTANTE: Nombre fijo para GitHub Actions
   name                = "request-app-asg"
-  
   desired_capacity    = 1
   min_size            = 1
   max_size            = 2
