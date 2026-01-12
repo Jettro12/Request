@@ -98,7 +98,9 @@ app.post("/login", async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
+
+    // 👇 VALIDACIÓN CRÍTICA
+    if (!user || !user.password) {
       return res.status(401).json({ error: "invalid" });
     }
 
