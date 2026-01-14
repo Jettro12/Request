@@ -142,22 +142,36 @@ services:
       PORT: 4010
     networks:
       - microservices-net
+  # ===============================
+  # API GATEWAY (Nginx)
+  # ===============================
+  api-gateway:
+    image: nginx:alpine
+    container_name: nginx-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - auth-service
+      - posts-service
+    networks:
+      - microservices-net
 
   # ===============================
-  # FRONTEND
+  # FRONTEND (Ajustado)
   # ===============================
   frontend:
     image: ghcr.io/jettro12/frontend:latest
     container_name: frontend
-    ports:
-      - "80:3000" # Cambiado a 80 para acceso directo vía ALB
+    # SE ELIMINAN LOS PORTS: - "80:3000" para que no choquen con Nginx
+    expose:
+      - "3000"
     environment:
       NEXT_PUBLIC_API_BASE_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
       NEXTAUTH_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       DATABASE_URL: ${DATABASE_URL}
-    depends_on:
-      - auth-service
-      - users-service
     networks:
       - microservices-net
