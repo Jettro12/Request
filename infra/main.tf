@@ -68,7 +68,7 @@ resource "aws_security_group" "bastion_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Para acceder desde consola AWS y tu IP
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -84,8 +84,8 @@ resource "aws_security_group" "ec2_sg" {
   vpc_id = data.aws_vpc.default.id
 
   ingress {
-    from_port       = 3000
-    to_port         = 3000
+    from_port       = 80        # El tráfico del ALB llega a Nginx en el puerto 80
+    to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id]
   }
@@ -94,7 +94,7 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Acceso SSH global para EC2 Connect
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -143,28 +143,21 @@ resource "aws_launch_template" "app_lt" {
 
     docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
 
-    cat << 'COMPOSE' > docker-compose.yml
+    # Crear el docker-compose.prod.yml (está en la misma carpeta /infra)
+    cat << 'COMPOSE' > docker-compose.prod.yml
     ${file("docker-compose.prod.yml")}
     COMPOSE
 
-    docker-compose pull
-    docker-compose up -d
+    # Crear el nginx.conf (subimos un nivel desde /infra para ir a /nginx)
+    cat << 'NGINX' > nginx.conf
+    ${file("../nginx/nginx.conf")}
+    NGINX
 
-    echo "⏳ Esperando 45s para estabilidad de servicios y Supabase..."
-    sleep 45
+    # Levantar el stack usando el archivo de producción
+    docker-compose -f docker-compose.prod.yml pull
+    docker-compose -f docker-compose.prod.yml up -d
 
-    # Migraciones automáticas
-    docker exec auth-service npx prisma db push
-    docker exec users-service npx prisma db push
-    docker exec posts-service npx prisma db push
-    docker exec requests-service npx prisma db push
-    docker exec notification-service npx prisma db push
-    docker exec profile-service npx prisma db push
-    docker exec ratings-service npx prisma db push
-    docker exec messages-service npx prisma db push
-    docker exec conversations-service npx prisma db push
-    
-    echo "✅ Sistema sincronizado."
+    echo "✅ Sistema levantado con API Gateway en puerto 80."
   EOF
   )
 }
@@ -195,13 +188,13 @@ resource "aws_lb" "app_alb" {
 
 resource "aws_lb_target_group" "app_tg" {
   name     = "app-tg"
-  port     = 3000
+  port     = 80
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id
 
   health_check {
-    path                = "/"
-    port                = "3000"
+    path                = "/health" # Endpoint definido en tu nginx.conf
+    port                = "80"
     interval            = 60
     timeout             = 10
     healthy_threshold   = 2

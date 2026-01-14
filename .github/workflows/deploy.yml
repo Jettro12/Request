@@ -4,115 +4,107 @@ on:
   push:
     branches:
       - "fix-microservices"
+    # Solo dispara el workflow si cambian estas carpetas
+    paths:
+      - "services/**"
+      - "frontend/**"
+      - "nginx/**"
+      - ".github/workflows/**"
 
 permissions:
   packages: write
   contents: read
 
 jobs:
-  build-and-deploy:
+  changes:
     runs-on: ubuntu-latest
-
+    outputs:
+      # Definimos qué servicios cambiaron
+      auth: ${{ steps.filter.outputs.auth }}
+      users: ${{ steps.filter.outputs.users }}
+      posts: ${{ steps.filter.outputs.posts }}
+      requests: ${{ steps.filter.outputs.requests }}
+      notifications: ${{ steps.filter.outputs.notifications }}
+      profile: ${{ steps.filter.outputs.profile }}
+      ratings: ${{ steps.filter.outputs.ratings }}
+      messages: ${{ steps.filter.outputs.messages }}
+      conversations: ${{ steps.filter.outputs.conversations }}
+      chat: ${{ steps.filter.outputs.chat }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      nginx: ${{ steps.filter.outputs.nginx }}
     steps:
-      - name: Checkout Code
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            auth: ['services/auth-service/**']
+            users: ['services/users-service/**']
+            posts: ['services/posts-service/**']
+            requests: ['services/requests-service/**']
+            notifications: ['services/notification-service/**']
+            profile: ['services/profile-service/**']
+            ratings: ['services/ratings-service/**']
+            messages: ['services/messages-service/**']
+            conversations: ['services/conversations-service/**']
+            chat: ['services/chat-service/**']
+            frontend: ['frontend/**']
+            nginx: ['nginx/**']
+
+  build-and-push:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      # Esto permite que los builds corran en paralelo si es necesario
+      matrix:
+        service:
+          [
+            auth,
+            users,
+            posts,
+            requests,
+            notifications,
+            profile,
+            ratings,
+            messages,
+            conversations,
+            chat,
+            frontend,
+            nginx,
+          ]
+    steps:
+      # Solo ejecuta el build si el filtro detectó cambios en ese servicio
+      - name: Checkout
+        if: needs.changes.outputs[matrix.service] == 'true'
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
+      - name: Login to GHCR
+        if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ==========================================
-      # 2. CONSTRUIR Y SUBIR IMAGENES
-      # ==========================================
-
-      # --- BACKEND (Están dentro de la carpeta 'services') ---
-
-      - name: Build and Push Auth Service
+      - name: Build and Push
+        if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: ./services/auth-service
+          # Ajuste de ruta dinámico
+          context: >-
+            ${{ matrix.service == 'frontend' && './frontend' || 
+                matrix.service == 'nginx' && './nginx' || 
+                format('./services/{0}-service', matrix.service) }}
           push: true
-          tags: ghcr.io/jettro12/auth-service:latest
+          tags: ghcr.io/jettro12/${{ matrix.service == 'notifications' && 'notification' || matrix.service }}:latest
+          # ⚡ CACHÉ MÁGICO: Esto acelera los builds un 80%
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and Push Users Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/users-service
-          push: true
-          tags: ghcr.io/jettro12/users-service:latest
-
-      - name: Build and Push Posts Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/posts-service
-          push: true
-          tags: ghcr.io/jettro12/posts-service:latest
-
-      - name: Build and Push Requests Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/requests-service
-          push: true
-          tags: ghcr.io/jettro12/requests-service:latest
-
-      - name: Build and Push Notification Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/notification-service
-          push: true
-          tags: ghcr.io/jettro12/notification-service:latest
-
-      - name: Build and Push Profile Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/profile-service
-          push: true
-          tags: ghcr.io/jettro12/profile-service:latest
-
-      - name: Build and Push Ratings Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/ratings-service
-          push: true
-          tags: ghcr.io/jettro12/ratings-service:latest
-
-      - name: Build and Push Messages Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/messages-service
-          push: true
-          tags: ghcr.io/jettro12/messages-service:latest
-
-      - name: Build and Push Conversations Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/conversations-service
-          push: true
-          tags: ghcr.io/jettro12/conversations-service:latest
-
-      - name: Build and Push Chat Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./services/chat-service
-          push: true
-          tags: ghcr.io/jettro12/chat-service:latest
-
-      # --- FRONTEND (Está en la raíz) ---
-
-      - name: Build and Push Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ghcr.io/jettro12/frontend:latest
-
-      # ==========================================
-      # 3. DESPLIEGUE EN AWS
-      # ==========================================
-
+  deploy:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
