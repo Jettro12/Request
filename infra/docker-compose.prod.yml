@@ -1,13 +1,5 @@
-version: "3.9"
-
-networks:
-  microservices-net:
-    driver: bridge
-
 services:
-  # ===============================
   # INFRAESTRUCTURA
-  # ===============================
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -23,6 +15,7 @@ services:
     networks:
       - microservices-net
 
+  # KAFKA STACK
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
@@ -34,8 +27,6 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
-    depends_on:
-      - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -45,26 +36,24 @@ services:
     networks:
       - microservices-net
 
-  # ===============================
   # MICROSERVICIOS
-  # ===============================
   auth-service:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
       PORT: 4004
-    depends_on:
-      - rabbitmq
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
     networks:
       - microservices-net
 
   users-service:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: ${DATABASE_URL}
       PORT: 4007
     networks:
       - microservices-net
@@ -72,79 +61,25 @@ services:
   posts-service:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      KAFKA_BROKER: kafka:9092
       PORT: 4002
-    depends_on:
-      - kafka
-    networks:
-      - microservices-net
-
-  requests-service:
-    image: ghcr.io/jettro12/requests-service:latest
-    container_name: requests-service
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: 4003
-    networks:
-      - microservices-net
-
-  notification-service:
-    image: ghcr.io/jettro12/notification-service:latest
-    container_name: notification-service
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: 4001
+      KAFKA_BROKER: kafka:9092
     networks:
       - microservices-net
 
   profile-service:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: ${DATABASE_URL}
       PORT: 4005
     networks:
       - microservices-net
 
-  ratings-service:
-    image: ghcr.io/jettro12/ratings-service:latest
-    container_name: ratings-service
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: 4006
-    networks:
-      - microservices-net
-
-  messages-service:
-    image: ghcr.io/jettro12/messages-service:latest
-    container_name: messages-service
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: 4008
-    networks:
-      - microservices-net
-
-  conversations-service:
-    image: ghcr.io/jettro12/conversations-service:latest
-    container_name: conversations-service
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: 4009
-    networks:
-      - microservices-net
-
-  chat-service:
-    image: ghcr.io/jettro12/chat-service:latest
-    container_name: chat-service
-    environment:
-      PORT: 4010
-    networks:
-      - microservices-net
-  # ===============================
-  # API GATEWAY (Nginx)
-  # ===============================
+  # API GATEWAY
   api-gateway:
     image: nginx:alpine
     container_name: nginx-gateway
@@ -152,26 +87,23 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - frontend
-      - auth-service
-      - posts-service
     networks:
       - microservices-net
 
-  # ===============================
-  # FRONTEND (Ajustado)
-  # ===============================
+  # FRONTEND
   frontend:
     image: ghcr.io/jettro12/frontend:latest
     container_name: frontend
-    # SE ELIMINAN LOS PORTS: - "80:3000" para que no choquen con Nginx
     expose:
       - "3000"
+    env_file:
+      - ../.env
     environment:
       NEXT_PUBLIC_API_BASE_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
       NEXTAUTH_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      DATABASE_URL: ${DATABASE_URL}
     networks:
       - microservices-net
+
+networks:
+  microservices-net:
+    driver: bridge
