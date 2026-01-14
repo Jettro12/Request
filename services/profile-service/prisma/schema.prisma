@@ -1,3 +1,12 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model Profile {
   id          String   @id @default(cuid())
   name        String?
@@ -9,5 +18,5 @@ model Profile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@map("users") // 👈 Esto le dice a Prisma que use la tabla 'users' de la DB
+  @@map("users")
 }
