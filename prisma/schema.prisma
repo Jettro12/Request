@@ -8,34 +8,77 @@ datasource db {
 }
 
 model User {
-  id                String         @id @default(cuid())
-  email             String         @unique
-  name              String
-  password          String?
-  avatar            String?
-  career            String
-  semester          Int
-  bio               String?
-  skills            String[]
-  interests         String[]
-  rating            Float          @default(0)
-  reviewCount       Int            @default(0)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  emailVerified     DateTime?
-  accounts          Account[]
-  receivedMessages  Message[]      @relation("ReceivedMessages")
-  sentMessages      Message[]      @relation("SentMessages")
-  sentNotifications Notification[] @relation("NotificationSender")
-  notifications     Notification[] @relation("UserNotifications")
-  posts             Post[]
-  sentRequests      Request[]      @relation("SentRequests")
-  receivedRequests  Request[]      @relation("ReceivedRequests")
-  reviewsGiven      Review[]       @relation("ReviewsGiven")
-  reviewsReceived   Review[]       @relation("ReviewsReceived")
-  sessions          Session[]
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  image         String?
+  role          String    @default("user")
+  career        String?
+  semester      Int?
+  bio           String?
+  skills        String[]  @default([])
+  interests     String[]  @default([])
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
+  emailVerified DateTime? @map("emailVerified")
+  createdAt     DateTime  @default(now()) @map("createdAt")
+  updatedAt     DateTime  @updatedAt @map("updatedAt")
 
+  accounts      Account[]
+  sessions      Session[]
+  posts         Post[]
+  notifications Notification[]
+  
   @@map("users")
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  type        String
+  careerSpace String   @map("careerSpace")
+  skills      String[] @default([])
+  authorId    String   @map("authorId")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("posts")
+}
+
+model Request {
+  id             String    @id @default(cuid())
+  type           String
+  message        String
+  status         String    @default("PENDING")
+  fromUserId     String    @map("fromUserId")
+  toUserId       String    @map("toUserId")
+  createdAt      DateTime  @default(now()) @map("createdAt")
+  updatedAt      DateTime  @updatedAt @map("updatedAt")
+  completedAt    DateTime? @map("completedAt")
+  fromUserRating Int?      @map("fromUserRating")
+  fromUserReview String?   @map("fromUserReview")
+  toUserRating   Int?      @map("toUserRating")
+  toUserReview   String?   @map("toUserReview")
+
+  @@map("requests")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  userId    String   @map("userId")
+  senderId  String?  @map("senderId")
+  relatedId String?  @map("relatedId")
+  createdAt DateTime @default(now()) @map("createdAt")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }
 
 model Account {
@@ -44,12 +87,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String  @map("provider_account_id")
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -65,142 +108,4 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
-}
-
-model Post {
-  id          String   @id @default(cuid())
-  title       String
-  content     String
-  type        PostType
-  authorId    String
-  careerSpace String
-  skills      String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@map("posts")
-}
-
-model Request {
-  id                  String        @id @default(cuid())
-  type                RequestType
-  message             String
-  status              RequestStatus @default(PENDING)
-  fromUserId          String
-  toUserId            String
-  agreementProposedAt DateTime?
-  agreementAcceptedBy String[]
-  completedAt         DateTime?
-  fromUserRating      Int?
-  toUserRating        Int?
-  fromUserReview      String?
-  toUserReview        String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  messages            Message[]
-  fromUser            User          @relation("SentRequests", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser              User          @relation("ReceivedRequests", fields: [toUserId], references: [id], onDelete: Cascade)
-
-  @@map("requests")
-}
-
-model Message {
-  id         String      @id @default(cuid())
-  content    String
-  requestId  String?
-  senderId   String
-  receiverId String
-  read       Boolean     @default(false)
-  type       MessageType @default(TEXT)
-  createdAt  DateTime    @default(now())
-  receiver   User        @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  request    Request?    @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  sender     User        @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-
-  @@map("messages")
-}
-
-model Review {
-  id          String   @id @default(cuid())
-  rating      Int
-  comment     String?
-  fromUserId  String
-  toUserId    String
-  projectName String
-  createdAt   DateTime @default(now())
-  fromUser    User     @relation("ReviewsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser      User     @relation("ReviewsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
-
-  @@map("reviews")
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  type      NotificationType
-  title     String
-  message   String
-  read      Boolean          @default(false)
-  userId    String
-  senderId  String?
-  relatedId String?
-  createdAt DateTime         @default(now())
-  sender    User?            @relation("NotificationSender", fields: [senderId], references: [id])
-  user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, read])
-  @@index([createdAt])
-  @@map("notifications")
-}
-
-enum NotificationType {
-  NEW_MESSAGE
-  REQUEST_RECEIVED
-  REQUEST_ACCEPTED
-  REQUEST_REJECTED
-  AGREEMENT_PROPOSAL
-  AGREEMENT_ACCEPTED
-  AGREEMENT_REJECTED
-  RATING_RECEIVED
-  PROJECT_COMPLETED
-}
-
-enum MessageType {
-  TEXT
-  AGREEMENT_PROPOSAL
-  AGREEMENT_ACCEPTED
-  AGREEMENT_REJECTED
-  RATING_REQUEST
-}
-
-enum PostType {
-  JOB
-  PROJECT
-  COLLABORATION
-  ENTREPRENEURSHIP
-  ANNOUNCEMENT
-}
-
-enum RequestType {
-  COLLABORATION
-  ADVICE
-  JOB_OFFER
-  MENTORSHIP
-}
-
-enum RequestStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  COMPLETED
 }
