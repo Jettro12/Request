@@ -52,9 +52,11 @@ services:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
       PORT: 4004
+    depends_on:
+      - rabbitmq
     networks:
       - microservices-net
 
@@ -62,7 +64,7 @@ services:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4007
     networks:
       - microservices-net
@@ -71,9 +73,11 @@ services:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       KAFKA_BROKER: kafka:9092
       PORT: 4002
+    depends_on:
+      - kafka
     networks:
       - microservices-net
 
@@ -81,7 +85,7 @@ services:
     image: ghcr.io/jettro12/requests-service:latest
     container_name: requests-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4003
     networks:
       - microservices-net
@@ -90,7 +94,7 @@ services:
     image: ghcr.io/jettro12/notification-service:latest
     container_name: notification-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4001
     networks:
       - microservices-net
@@ -99,7 +103,7 @@ services:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4005
     networks:
       - microservices-net
@@ -108,7 +112,7 @@ services:
     image: ghcr.io/jettro12/ratings-service:latest
     container_name: ratings-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4006
     networks:
       - microservices-net
@@ -117,7 +121,7 @@ services:
     image: ghcr.io/jettro12/messages-service:latest
     container_name: messages-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4008
     networks:
       - microservices-net
@@ -126,7 +130,7 @@ services:
     image: ghcr.io/jettro12/conversations-service:latest
     container_name: conversations-service
     environment:
-      DATABASE_URL: "postgresql://postgres.rywcqjnphkpmnxfmvatn:DinosaurioNocturno2026@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+      DATABASE_URL: ${DATABASE_URL}
       PORT: 4009
     networks:
       - microservices-net
@@ -146,11 +150,12 @@ services:
     image: ghcr.io/jettro12/frontend:latest
     container_name: frontend
     ports:
-      - "3000:3000"
+      - "80:3000" # Cambiado a 80 para acceso directo vía ALB
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ""
-      NEXTAUTH_URL: http://app-alb-1381202935.us-east-1.elb.amazonaws.com
-      NEXTAUTH_SECRET: super-secret-prod
+      NEXT_PUBLIC_API_BASE_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
+      NEXTAUTH_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       - auth-service
       - users-service

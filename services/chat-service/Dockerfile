@@ -1,23 +1,20 @@
 ﻿FROM node:18-bullseye-slim
 WORKDIR /usr/src/app
 
-# Configurar npm para mejor manejo de red
 RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000
 
-# Copiar archivos de configuración y dependencias
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instalar dependencias con retry automático
-RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
-# Copiar el resto del código
+# Si tu chat-service NO usa Prisma, puedes omitir las líneas de prisma aquí
+# Si SÍ usa Prisma, añade las 2 líneas de COPY prisma y RUN npx prisma generate
+
 COPY . .
-
 RUN npm run build
+RUN npm prune --production
 
 EXPOSE 4010
-CMD ["npm", "start"]
+CMD ["node", "dist/main.js"]
