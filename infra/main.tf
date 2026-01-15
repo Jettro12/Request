@@ -56,17 +56,33 @@ data "aws_subnets" "default" {
 ############################################
 # SECURITY GROUPS
 ############################################
+
 resource "aws_security_group" "alb_sg" {
   name   = "alb-sg"
   vpc_id = data.aws_vpc.default.id
-
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
 
+resource "aws_security_group" "bastion_sg" {
+  name   = "bastion-sg"
+  vpc_id = data.aws_vpc.default.id
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${var.my_ip}/32"]
+  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -78,21 +94,18 @@ resource "aws_security_group" "alb_sg" {
 resource "aws_security_group" "ec2_sg" {
   name   = "ec2-sg"
   vpc_id = data.aws_vpc.default.id
-
   ingress {
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id]
   }
-
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/32"] # Solo tu IP puede entrar por SSH
+    cidr_blocks = ["${var.my_ip}/32"]
   }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -104,21 +117,18 @@ resource "aws_security_group" "ec2_sg" {
 resource "aws_security_group" "infra_sg" {
   name   = "infra-sg"
   vpc_id = data.aws_vpc.default.id
-
   ingress {
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
     security_groups = [aws_security_group.ec2_sg.id]
   }
-
   ingress {
     from_port       = 1883
     to_port         = 1883
     protocol        = "tcp"
     security_groups = [aws_security_group.ec2_sg.id]
   }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -128,8 +138,9 @@ resource "aws_security_group" "infra_sg" {
 }
 
 ############################################
-# INFRAESTRUCTURA (REDIS & MQTT)
+# INFRA (REDIS, MQTT, BASTION)
 ############################################
+
 resource "aws_elasticache_cluster" "redis" {
   cluster_id           = "app-redis"
   engine               = "redis"
@@ -145,7 +156,6 @@ resource "aws_instance" "mqtt_broker" {
   instance_type          = "t3.nano"
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.infra_sg.id]
-
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
@@ -153,24 +163,32 @@ resource "aws_instance" "mqtt_broker" {
     systemctl start mosquitto
     systemctl enable mosquitto
   EOF
-
   tags = { Name = "MQTT-Broker" }
+}
+
+resource "aws_instance" "bastion" {
+  ami                         = "ami-0c02fb55956c7d316"
+  instance_type               = "t3.micro"
+  key_name                    = var.ssh_key_name
+  subnet_id                   = data.aws_subnets.default.ids[0]
+  vpc_security_group_ids      = [aws_security_group.bastion_sg.id]
+  associate_public_ip_address = true
+  tags = { Name = "Bastion-Host" }
 }
 
 ############################################
 # LAUNCH TEMPLATE
 ############################################
+
 resource "aws_launch_template" "app_lt" {
   name_prefix   = "app-lt-"
   image_id      = "ami-0c02fb55956c7d316"
   instance_type = "t3.medium"
   key_name      = var.ssh_key_name
-
   network_interfaces {
     security_groups             = [aws_security_group.ec2_sg.id]
     associate_public_ip_address = true
   }
-
   user_data = base64encode(<<-EOF
     #!/bin/bash
     yum update -y
@@ -178,14 +196,10 @@ resource "aws_launch_template" "app_lt" {
     systemctl start docker
     systemctl enable docker
     usermod -aG docker ec2-user
-
     curl -L https://github.com/docker/compose/releases/download/v2.25.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
-
     mkdir -p /app
     cd /app
-
-    # Crear .env dinámico
     cat << 'ENV' > .env
     DATABASE_URL="${var.database_url}"
     NEXTAUTH_SECRET="${var.nextauth_secret}"
@@ -196,18 +210,15 @@ resource "aws_launch_template" "app_lt" {
     NEXTAUTH_URL="http://${aws_lb.app_alb.dns_name}"
     NEXT_PUBLIC_API_BASE_URL="http://${aws_lb.app_alb.dns_name}"
     ENV
-
     docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
-
     cat << 'COMPOSE' > docker-compose.prod.yml
     ${file("docker-compose.prod.yml")}
     COMPOSE
-
     mkdir -p nginx
     cat << 'NGINX' > nginx/nginx.conf
     ${file("../nginx/nginx.conf")}
     NGINX
-
+    sed -i "s/INSERT_ALB_DNS_HERE/${aws_lb.app_alb.dns_name}/g" nginx/nginx.conf
     /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
   EOF
   )
@@ -216,6 +227,7 @@ resource "aws_launch_template" "app_lt" {
 ############################################
 # ALB & ASG
 ############################################
+
 resource "aws_lb" "app_alb" {
   name               = "app-alb"
   load_balancer_type = "application"
@@ -228,6 +240,7 @@ resource "aws_lb_target_group" "app_tg" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id
+  
   health_check {
     path = "/health"
     port = "80"
@@ -257,4 +270,14 @@ resource "aws_autoscaling_group" "app_asg" {
   }
 }
 
-output "alb_dns" { value = aws_lb.app_alb.dns_name }
+############################################
+# OUTPUTS
+############################################
+
+output "alb_dns_url" {
+  value = "http://${aws_lb.app_alb.dns_name}"
+}
+
+output "bastion_ssh_command" {
+  value = "ssh -i ${var.ssh_key_name}.pem ec2-user@${aws_instance.bastion.public_ip}"
+}

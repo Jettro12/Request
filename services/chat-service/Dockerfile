@@ -7,14 +7,20 @@ RUN npm config set fetch-retries 5 && \
 COPY package*.json ./
 COPY tsconfig.json ./
 
+# Instalamos dependencias
 RUN npm install --legacy-peer-deps
 
-# Si tu chat-service NO usa Prisma, puedes omitir las líneas de prisma aquí
-# Si SÍ usa Prisma, añade las 2 líneas de COPY prisma y RUN npx prisma generate
-
 COPY . .
+
+# Generamos el build
 RUN npm run build
+
+# Limpiamos dependencias de desarrollo para que la imagen sea ligera
 RUN npm prune --production
 
+# EXPLICACIÓN: 
+# Si el error persiste, es probable que tu punto de entrada sea dist/index.js 
+# o que NestJS esté usando dist/src/main.js.
+# Ajustamos el CMD para que sea el estándar de NestJS:
 EXPOSE 4010
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/index.js"]
