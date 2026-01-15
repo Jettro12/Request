@@ -1,58 +1,44 @@
+version: "3.9"
+
+networks:
+  microservices-net:
+    driver: bridge
+
 services:
-  # INFRAESTRUCTURA
-  redis:
-    image: redis:7-alpine
-    container_name: redis
+  # ===============================
+  # API GATEWAY (Nginx)
+  # ===============================
+  api-gateway:
+    image: nginx:alpine
+    container_name: nginx-gateway
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      # Montamos el config dinámico que permite arrancar aunque falten servicios
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - microservices-net
 
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
-    networks:
-      - microservices-net
-
-  # KAFKA STACK
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-    networks:
-      - microservices-net
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - microservices-net
-
+  # ===============================
   # MICROSERVICIOS
+  # ===============================
+
   auth-service:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
-    env_file:
-      - ../.env
+    restart: always
+    env_file: [../.env] # Lee DATABASE_URL, REDIS_URL y RABBITMQ_URL de AWS
     environment:
       PORT: 4004
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
     networks:
       - microservices-net
 
   users-service:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
-    env_file:
-      - ../.env
+    restart: always
+    env_file: [../.env]
     environment:
       PORT: 4007
     networks:
@@ -61,49 +47,95 @@ services:
   posts-service:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
-    env_file:
-      - ../.env
+    restart: always
+    env_file: [../.env] # Lee KAFKA_BROKER (MSK)
     environment:
       PORT: 4002
-      KAFKA_BROKER: kafka:9092
+    networks:
+      - microservices-net
+
+  requests-service:
+    image: ghcr.io/jettro12/requests-service:latest
+    container_name: requests-service
+    restart: always
+    env_file: [../.env]
+    environment:
+      PORT: 4003
     networks:
       - microservices-net
 
   profile-service:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
-    env_file:
-      - ../.env
+    restart: always
+    env_file: [../.env]
     environment:
       PORT: 4005
     networks:
       - microservices-net
 
-  # API GATEWAY
-  api-gateway:
-    image: nginx:alpine
-    container_name: nginx-gateway
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  notification-service:
+    image: ghcr.io/jettro12/notification-service:latest
+    container_name: notification-service
+    restart: always
+    env_file: [../.env] # Lee MQTT_BROKER y KAFKA_BROKER
+    environment:
+      PORT: 4001
     networks:
       - microservices-net
 
+  ratings-service:
+    image: ghcr.io/jettro12/ratings-service:latest
+    container_name: ratings-service
+    restart: always
+    env_file: [../.env]
+    environment:
+      PORT: 4006
+    networks:
+      - microservices-net
+
+  messages-service:
+    image: ghcr.io/jettro12/messages-service:latest
+    container_name: messages-service
+    restart: always
+    env_file: [../.env]
+    environment:
+      PORT: 4008
+    networks:
+      - microservices-net
+
+  conversations-service:
+    image: ghcr.io/jettro12/conversations-service:latest
+    container_name: conversations-service
+    restart: always
+    env_file: [../.env]
+    environment:
+      PORT: 4009
+    networks:
+      - microservices-net
+
+  chat-service:
+    image: ghcr.io/jettro12/chat-service:latest
+    container_name: chat-service
+    restart: always
+    env_file: [../.env]
+    environment:
+      PORT: 4010
+    networks:
+      - microservices-net
+
+  # ===============================
   # FRONTEND
+  # ===============================
   frontend:
     image: ghcr.io/jettro12/frontend:latest
     container_name: frontend
+    restart: always
     expose:
       - "3000"
-    env_file:
-      - ../.env
+    env_file: [../.env]
     environment:
       NEXT_PUBLIC_API_BASE_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
       NEXTAUTH_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
     networks:
       - microservices-net
-
-networks:
-  microservices-net:
-    driver: bridge

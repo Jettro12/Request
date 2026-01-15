@@ -13,3 +13,9 @@ build
 Dockerfile
 docker-compose.yml
 
+dist/
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
