@@ -16,7 +16,7 @@ services:
       - "80:80"
     volumes:
       # Montamos el config dinámico que permite arrancar aunque falten servicios
-      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - microservices-net
 
@@ -28,7 +28,7 @@ services:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
     restart: always
-    env_file: [../.env] # Lee DATABASE_URL, REDIS_URL y RABBITMQ_URL de AWS
+    env_file: [./.env] # Lee DATABASE_URL, REDIS_URL y RABBITMQ_URL de AWS
     environment:
       PORT: 4004
     networks:
@@ -38,7 +38,7 @@ services:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4007
     networks:
@@ -48,7 +48,7 @@ services:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
     restart: always
-    env_file: [../.env] # Lee KAFKA_BROKER (MSK)
+    env_file: [./.env] # Lee KAFKA_BROKER (MSK)
     environment:
       PORT: 4002
     networks:
@@ -58,7 +58,7 @@ services:
     image: ghcr.io/jettro12/requests-service:latest
     container_name: requests-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4003
     networks:
@@ -68,7 +68,7 @@ services:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4005
     networks:
@@ -78,7 +78,7 @@ services:
     image: ghcr.io/jettro12/notification-service:latest
     container_name: notification-service
     restart: always
-    env_file: [../.env] # Lee MQTT_BROKER y KAFKA_BROKER
+    env_file: [./.env] # Lee MQTT_BROKER y KAFKA_BROKER
     environment:
       PORT: 4001
     networks:
@@ -88,7 +88,7 @@ services:
     image: ghcr.io/jettro12/ratings-service:latest
     container_name: ratings-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4006
     networks:
@@ -98,7 +98,7 @@ services:
     image: ghcr.io/jettro12/messages-service:latest
     container_name: messages-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4008
     networks:
@@ -108,7 +108,7 @@ services:
     image: ghcr.io/jettro12/conversations-service:latest
     container_name: conversations-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4009
     networks:
@@ -118,7 +118,7 @@ services:
     image: ghcr.io/jettro12/chat-service:latest
     container_name: chat-service
     restart: always
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       PORT: 4010
     networks:
@@ -133,7 +133,7 @@ services:
     restart: always
     expose:
       - "3000"
-    env_file: [../.env]
+    env_file: [./.env]
     environment:
       NEXT_PUBLIC_API_BASE_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
       NEXTAUTH_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
