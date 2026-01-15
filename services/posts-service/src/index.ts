@@ -20,7 +20,6 @@ app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
       "http://localhost:3000",
-      "http://localhost:8080",
       "http://frontend:3000",
     ],
     credentials: true,
@@ -31,35 +30,55 @@ app.use(
 
 app.use(express.json());
 
-app.get("/health", (_req, res) =>
-  res.json({ status: "ok", service: "posts-service" })
-);
-
-// 👇 AQUÍ ESTÁ EL ARREGLO PARA EL ERROR 405 👇
-// Escuchamos en la raíz (para cuando el proxy funciona bien)
+/**
+ * 🚀 RUTAS RAÍZ Y REDUNDANTES
+ * Escuchamos en "/" y "/posts" para asegurar que Nginx siempre encuentre el servicio
+ */
 app.get("/", getPosts);
 app.post("/", createPost);
 
-// Y TAMBIÉN escuchamos en /posts (por si el proxy envía la ruta completa)
 app.get("/posts", getPosts);
 app.post("/posts", createPost);
+
+app.get("/health", (_req, res) =>
+  res.json({ status: "ok", service: "posts-service" })
+);
 
 app.get("/:id", getPostById);
 app.put("/:id", updatePost);
 app.delete("/:id", deletePost);
 
 const shutdown = async () => {
+  console.log("Shutting down gracefully...");
   await disconnectKafka();
   await prisma.$disconnect();
   process.exit(0);
 };
 
 async function start() {
-  await prisma.$connect();
-  await connectKafkaProducer();
-  app.listen(PORT, "0.0.0.0", () => console.log(`Posts listening on ${PORT}`));
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  try {
+    await prisma.$connect();
+    // Intentar conectar Kafka, pero no detener el servicio si falla (resiliencia)
+    try {
+      await connectKafkaProducer();
+      console.log("✅ Kafka Producer connected");
+    } catch (kErr) {
+      console.error(
+        "⚠️ Kafka connection failed, but service will start:",
+        kErr
+      );
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Posts service listening on port ${PORT}`);
+    });
+
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+  } catch (err) {
+    console.error("❌ Failed to start posts-service:", err);
+    process.exit(1);
+  }
 }
 
 start();

@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { prisma } from "./prisma";
-// Ajusta la ruta de importación a donde tengas tu controlador
 import {
   createRequest,
   getUserRequests,
@@ -20,7 +19,6 @@ app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
       "http://localhost:3000",
-      "http://localhost:8080",
       "http://frontend:3000",
     ],
     credentials: true,
@@ -31,31 +29,51 @@ app.use(
 
 app.use(express.json());
 
-// 👇 RUTAS ALINEADAS CON CLIENT.TS 👇
+/**
+ * 🚀 RUTA RAÍZ (Soporta POST desde ApiClient.requests.createRequest)
+ */
+app.get("/", (req, res) => {
+  res.json({ status: "ok", service: "requests-service" });
+});
 
-// ApiClient.requests.createRequest() -> POST /
+// POST / -> Crea una nueva solicitud
 app.post("/", createRequest);
 
-// ApiClient.requests.getUserRequests() -> GET /user/:userId
+/**
+ * RUTAS DE SOLICITUDES
+ */
+
+// Obtener solicitudes por usuario
 app.get("/user/:userId", getUserRequests);
 
-// ApiClient.requests.updateRequestStatus() -> PUT /:id/status
+// Actualizar estado (Aceptar/Rechazar)
 app.put("/:id/status", updateRequestStatus);
 
-// ApiClient.requests.completeRequest() -> POST /:id/complete
+// Finalizar solicitud (Marcar como completada)
 app.post("/:id/complete", completeRequest);
 
-// GET /chat/:userId - Obtener request por chat (para frontend)
+// Buscar solicitud ligada a un chat
 app.get("/chat/:userId", getRequestByChat);
 
-app.get("/health", (req, res) =>
-  res.json({ status: "ok", service: "requests-service" })
-);
+/**
+ * HEALTH
+ */
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", service: "requests-service" });
+});
 
 async function start() {
-  await prisma.$connect();
-  app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Requests service listening on ${PORT}`)
-  );
+  try {
+    await prisma.$connect();
+    console.log("✅ Requests Service: Prisma connected");
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Requests service listening on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("❌ Database connection failed", err);
+    process.exit(1);
+  }
 }
+
 start();
