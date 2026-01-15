@@ -138,7 +138,7 @@ resource "aws_security_group" "infra_sg" {
 }
 
 ############################################
-# INFRA (REDIS, MQTT, BASTION)
+# INFRAESTRUCTURA (REDIS, MQTT, BASTION)
 ############################################
 
 resource "aws_elasticache_cluster" "redis" {
@@ -198,8 +198,11 @@ resource "aws_launch_template" "app_lt" {
     usermod -aG docker ec2-user
     curl -L https://github.com/docker/compose/releases/download/v2.25.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
-    mkdir -p /app
+
+    mkdir -p /app/nginx
     cd /app
+
+    # Generación del .env con el DNS dinámico del ALB
     cat << 'ENV' > .env
     DATABASE_URL="${var.database_url}"
     NEXTAUTH_SECRET="${var.nextauth_secret}"
@@ -207,18 +210,23 @@ resource "aws_launch_template" "app_lt" {
     NEXT_PUBLIC_SUPABASE_ANON_KEY="${var.supabase_anon_key}"
     REDIS_URL="redis://${aws_elasticache_cluster.redis.cache_nodes[0].address}:6379"
     MQTT_BROKER="mqtt://${aws_instance.mqtt_broker.private_ip}:1883"
+    KAFKA_BROKER="kafka:9092"
     NEXTAUTH_URL="http://${aws_lb.app_alb.dns_name}"
     NEXT_PUBLIC_API_BASE_URL="http://${aws_lb.app_alb.dns_name}"
     ENV
-    docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
+
     cat << 'COMPOSE' > docker-compose.prod.yml
     ${file("docker-compose.prod.yml")}
     COMPOSE
-    mkdir -p nginx
+
     cat << 'NGINX' > nginx/nginx.conf
     ${file("../nginx/nginx.conf")}
     NGINX
+
+    # Reemplazo dinámico del DNS en Nginx para CORS
     sed -i "s/INSERT_ALB_DNS_HERE/${aws_lb.app_alb.dns_name}/g" nginx/nginx.conf
+
+    docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
     /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
   EOF
   )
@@ -240,7 +248,6 @@ resource "aws_lb_target_group" "app_tg" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id
-  
   health_check {
     path = "/health"
     port = "80"
@@ -273,11 +280,10 @@ resource "aws_autoscaling_group" "app_asg" {
 ############################################
 # OUTPUTS
 ############################################
-
 output "alb_dns_url" {
   value = "http://${aws_lb.app_alb.dns_name}"
 }
 
-output "bastion_ssh_command" {
+output "bastion_ssh" {
   value = "ssh -i ${var.ssh_key_name}.pem ec2-user@${aws_instance.bastion.public_ip}"
 }

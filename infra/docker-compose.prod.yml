@@ -15,7 +15,6 @@ services:
     ports:
       - "80:80"
     volumes:
-      # Montamos el config dinámico que permite arrancar aunque falten servicios
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - microservices-net
@@ -28,7 +27,7 @@ services:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
     restart: always
-    env_file: [./.env] # Lee DATABASE_URL, REDIS_URL y RABBITMQ_URL de AWS
+    env_file: [./.env]
     environment:
       PORT: 4004
     networks:
@@ -48,9 +47,10 @@ services:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
     restart: always
-    env_file: [./.env] # Lee KAFKA_BROKER (MSK)
+    env_file: [./.env]
     environment:
       PORT: 4002
+      KAFKA_BROKER: ${KAFKA_BROKER}
     networks:
       - microservices-net
 
@@ -78,9 +78,11 @@ services:
     image: ghcr.io/jettro12/notification-service:latest
     container_name: notification-service
     restart: always
-    env_file: [./.env] # Lee MQTT_BROKER y KAFKA_BROKER
+    env_file: [./.env]
     environment:
       PORT: 4001
+      KAFKA_BROKER: ${KAFKA_BROKER}
+      MQTT_BROKER: ${MQTT_BROKER}
     networks:
       - microservices-net
 
@@ -135,7 +137,7 @@ services:
       - "3000"
     env_file: [./.env]
     environment:
-      NEXT_PUBLIC_API_BASE_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
-      NEXTAUTH_URL: "http://app-alb-1381202935.us-east-1.elb.amazonaws.com"
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
     networks:
       - microservices-net

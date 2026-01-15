@@ -95,7 +95,13 @@ jobs:
                 matrix.service == 'nginx' && './nginx' || 
                 format('./services/{0}-service', matrix.service) }}
           push: true
-          tags: ghcr.io/jettro12/${{ matrix.service == 'notification' && 'notification' || matrix.service }}:latest
+          # IMPORTANTE: Sincronizar nombres con docker-compose.prod.yml
+          tags: |
+            ghcr.io/jettro12/${{ 
+              matrix.service == 'frontend' && 'frontend' || 
+              matrix.service == 'nginx' && 'nginx' || 
+              format('{0}-service', matrix.service) 
+            }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -108,11 +114,14 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # Usar token de sesión solo si es necesario (cuentas temporales/Academy)
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
       - name: Refresh ASG Instances
         run: |
+          # El refresh forzará a las nuevas instancias a ejecutar el User Data de Terraform,
+          # el cual hará un 'docker login' y un 'docker-compose pull' de las imágenes 'latest'
           aws autoscaling start-instance-refresh \
             --auto-scaling-group-name request-app-asg \
             --preferences '{"MinHealthyPercentage": 0, "InstanceWarmup": 300}'
