@@ -9,16 +9,18 @@ services:
   # INFRAESTRUCTURA DE MENSAJERÍA
   # ===============================
   zookeeper:
-    image: bitnami/zookeeper:latest
+    image: bitnami/zookeeper:3.9
     container_name: zookeeper
+    restart: always
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
     networks:
       - microservices-net
 
   kafka:
-    image: bitnami/kafka:latest
+    image: bitnami/kafka:3.9
     container_name: kafka
+    restart: always
     environment:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes

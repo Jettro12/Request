@@ -40,7 +40,7 @@ variable "supabase_anon_key" {
 }
 
 ############################################
-# DATA (CORREGIDO)
+# DATA (FILTRO DE ZONAS COMPATIBLES)
 ############################################
 data "aws_vpc" "default" {
   default = true
@@ -52,7 +52,7 @@ data "aws_subnets" "default" {
     values = [data.aws_vpc.default.id]
   }
 
-  # 🚀 FILTRO DINÁMICO: Excluimos la zona que no soporta t3.medium
+  # Filtro para evitar zonas sin soporte t3.medium (como us-east-1e)
   filter {
     name   = "availability-zone"
     values = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1f"]
@@ -123,6 +123,7 @@ resource "aws_security_group" "ec2_sg" {
 resource "aws_security_group" "infra_sg" {
   name   = "infra-sg"
   vpc_id = data.aws_vpc.default.id
+  # Permitir tráfico desde las EC2 hacia Redis y MQTT
   ingress {
     from_port       = 6379
     to_port         = 6379
@@ -208,19 +209,29 @@ resource "aws_launch_template" "app_lt" {
     mkdir -p /app/nginx
     cd /app
 
-    # Generación del .env con el DNS dinámico del ALB
+    # 🔥 GENERACIÓN DINÁMICA DE .ENV 🔥
+    # Inyectamos REDIS_HOST y URLs del ALB directamente desde Terraform
     cat << 'ENV' > .env
     DATABASE_URL="${var.database_url}"
     NEXTAUTH_SECRET="${var.nextauth_secret}"
     NEXT_PUBLIC_SUPABASE_URL="${var.supabase_url}"
     NEXT_PUBLIC_SUPABASE_ANON_KEY="${var.supabase_anon_key}"
+    
+    # Inyección automática de ElastiCache
+    REDIS_HOST="${aws_elasticache_cluster.redis.cache_nodes[0].address}"
+    REDIS_PORT="6379"
     REDIS_URL="redis://${aws_elasticache_cluster.redis.cache_nodes[0].address}:6379"
+
+    # MQTT y Kafka
     MQTT_BROKER="mqtt://${aws_instance.mqtt_broker.private_ip}:1883"
     KAFKA_BROKER="kafka:9092"
+
+    # Inyección dinámica del DNS del ALB
     NEXTAUTH_URL="http://${aws_lb.app_alb.dns_name}"
     NEXT_PUBLIC_API_BASE_URL="http://${aws_lb.app_alb.dns_name}"
     ENV
 
+    # Inyectar archivos desde el repositorio local al servidor
     cat << 'COMPOSE' > docker-compose.prod.yml
     ${file("docker-compose.prod.yml")}
     COMPOSE
@@ -229,7 +240,7 @@ resource "aws_launch_template" "app_lt" {
     ${file("../nginx/nginx.conf")}
     NGINX
 
-    # Reemplazo dinámico del DNS en Nginx para CORS
+    # Reemplazo dinámico del DNS en Nginx para evitar errores de CORS
     sed -i "s/INSERT_ALB_DNS_HERE/${aws_lb.app_alb.dns_name}/g" nginx/nginx.conf
 
     docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
@@ -288,6 +299,10 @@ resource "aws_autoscaling_group" "app_asg" {
 ############################################
 output "alb_dns_url" {
   value = "http://${aws_lb.app_alb.dns_name}"
+}
+
+output "redis_endpoint" {
+  value = aws_elasticache_cluster.redis.cache_nodes[0].address
 }
 
 output "bastion_ssh" {
