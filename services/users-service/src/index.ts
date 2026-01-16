@@ -17,12 +17,11 @@ dotenv.config();
 const PORT = parseInt(process.env.PORT || "4007");
 const app = express();
 
-// 🛡️ CORS
+// 🛡️ CORS optimizado para producción
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
       "http://localhost:3000",
-      "http://localhost:8080",
       "http://frontend:3000",
     ],
     credentials: true,
@@ -34,37 +33,39 @@ app.use(
 app.use(express.json());
 
 /* =====================================================
-   HEALTH
+   RUTAS RAÍZ Y SALUD (Para Nginx y AWS)
 ===================================================== */
+
+// ✅ RUTA RAÍZ (Responde a /users/ cuando Nginx limpia la ruta)
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "users-service",
+    message: "API is online",
+  });
+});
+
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", service: "users-service" })
 );
 
 /* =====================================================
-   USERS ROUTES (SIN PREFIJO /users)
-   El Proxy ya se encarga de dirigir aquí cuando llaman a /users
+   USERS ROUTES
 ===================================================== */
 
-// 1. Búsquedas específicas (Deben ir antes de /:id)
-// Frontend: /users/search -> Backend: /search
+// 1. Búsquedas específicas (SIEMPRE primero para evitar colisión con :id)
 app.get("/search", searchUsers);
-
-// Frontend: /users/career/:career -> Backend: /career/:career
 app.get("/career/:career", getUsersByCareer);
 
 // 2. Gestión de Perfil
-// Frontend: /users/profile -> Backend: /profile
 app.post("/profile", createProfile);
-
-// Frontend: /users/:id/profile -> Backend: /:id/profile
 app.put("/:id/profile", updateProfile);
 
 // 3. Obtener por ID (Genérico, va al final)
-// Frontend: /users/:id -> Backend: /:id
 app.get("/:id", getUserProfile);
 
 /* =====================================================
-   START
+   START LOGIC
 ===================================================== */
 async function start() {
   try {
@@ -74,6 +75,7 @@ async function start() {
     const userService = new UserService(prisma);
     console.log("✅ UserService initialized");
 
+    // RabbitMQ consumer (si está configurado)
     if (eventConsumer?.startConsuming) {
       try {
         await eventConsumer.startConsuming(userService);
@@ -83,8 +85,9 @@ async function start() {
       }
     }
 
+    // Escuchar en 0.0.0.0 para Docker
     app.listen(PORT, "0.0.0.0", () =>
-      console.log(`🚀 Users service listening on ${PORT}`)
+      console.log(`🚀 Users service listening on port ${PORT}`)
     );
   } catch (error) {
     console.error("❌ Failed to start users-service:", error);

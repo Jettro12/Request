@@ -29,43 +29,37 @@ app.use(
 
 app.use(express.json());
 
-/**
- * 🚀 RUTA RAÍZ (Soporta POST desde ApiClient.requests.createRequest)
- */
+/* =====================================================
+   RUTAS DEL MICROSERVICIO (Sin prefijo /requests)
+===================================================== */
+
+// ✅ RUTA RAÍZ (GET /): Informativa
 app.get("/", (req, res) => {
-  res.json({ status: "ok", service: "requests-service" });
+  res.json({
+    status: "ok",
+    service: "requests-service",
+    description: "Handles help requests",
+  });
 });
 
-// POST / -> Crea una nueva solicitud
+// ✅ RUTA RAÍZ (POST /): Crea una nueva solicitud
 app.post("/", createRequest);
 
-/**
- * RUTAS DE SOLICITUDES
- */
-
-// Obtener solicitudes por usuario
-app.get("/user/:userId", getUserRequests);
-
-// Actualizar estado (Aceptar/Rechazar)
-app.put("/:id/status", updateRequestStatus);
-
-// Finalizar solicitud (Marcar como completada)
-app.post("/:id/complete", completeRequest);
-
-// Buscar solicitud ligada a un chat
-app.get("/chat/:userId", getRequestByChat);
-
-/**
- * HEALTH
- */
+// Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "requests-service" });
 });
 
+// Rutas funcionales
+app.get("/user/:userId", getUserRequests);
+app.get("/chat/:userId", getRequestByChat);
+app.post("/:id/complete", completeRequest);
+app.put("/:id/status", updateRequestStatus);
+
 async function start() {
   try {
     await prisma.$connect();
-    console.log("✅ Requests Service: Prisma connected");
+    console.log("✅ Requests DB Connected");
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Requests service listening on port ${PORT}`);

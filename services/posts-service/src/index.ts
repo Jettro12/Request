@@ -30,20 +30,22 @@ app.use(
 
 app.use(express.json());
 
-/**
- * 🚀 RUTAS RAÍZ Y REDUNDANTES
- * Escuchamos en "/" y "/posts" para asegurar que Nginx siempre encuentre el servicio
- */
+/* =====================================================
+   RUTAS DEL MICROSERVICIO (Sin prefijo /posts)
+===================================================== */
+
+// ✅ RUTA RAÍZ (GET /): Ahora responde con la lista de posts
 app.get("/", getPosts);
+
+// ✅ RUTA RAÍZ (POST /): Ahora permite crear posts directamente
 app.post("/", createPost);
 
-app.get("/posts", getPosts);
-app.post("/posts", createPost);
-
+// Health check para el Load Balancer
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", service: "posts-service" })
 );
 
+// ✅ RUTAS DINÁMICAS (Van al final para no atrapar /health)
 app.get("/:id", getPostById);
 app.put("/:id", updatePost);
 app.delete("/:id", deletePost);
@@ -58,7 +60,8 @@ const shutdown = async () => {
 async function start() {
   try {
     await prisma.$connect();
-    // Intentar conectar Kafka, pero no detener el servicio si falla (resiliencia)
+    console.log("✅ Posts DB Connected");
+
     try {
       await connectKafkaProducer();
       console.log("✅ Kafka Producer connected");
