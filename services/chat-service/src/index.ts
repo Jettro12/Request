@@ -9,17 +9,21 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 4010;
 
-// Configurar Socket.IO con CORS
+// ==========================================
+// CONFIGURACIÓN DE SOCKET.IO
+// ==========================================
 const io = new SocketIOServer(server, {
   cors: {
-    // Permitimos tanto localhost (navegador) como docker (interno)
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: "*", // En producción puedes restringirlo al DNS del ALB
     methods: ["GET", "POST"],
     credentials: true,
   },
   transports: ["websocket", "polling"],
 });
 
+// ==========================================
+// INFRAESTRUCTURA (REDIS & KAFKA)
+// ==========================================
 const redis = new Redis({
   host: process.env.REDIS_HOST || "redis",
   port: parseInt(process.env.REDIS_PORT || "6379"),
@@ -34,16 +38,26 @@ const kafka = new Kafka({
 const producer = kafka.producer();
 const consumer = kafka.consumer({ groupId: "chat-service-group" });
 
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// ==========================================
+// MIDDLEWARES
+// ==========================================
+app.use(cors());
 app.use(express.json());
 
+// ==========================================
+// RUTAS HTTP (FUNDAMENTAL PARA NGINX)
+// ==========================================
+
+// ✅ RUTA RAÍZ: Evita 404 cuando Nginx redirige a /chat/
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "chat-service",
+    info: "WebSocket server is running",
+  });
+});
+
+// HEALTH CHECK
 app.get("/health", (req, res) => {
   res.json({
     status: "OK",
@@ -55,6 +69,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// OBTENER INFO DE SALA
 app.get("/rooms/:roomId", async (req, res) => {
   try {
     const { roomId } = req.params;
@@ -66,6 +81,9 @@ app.get("/rooms/:roomId", async (req, res) => {
   }
 });
 
+// ==========================================
+// LÓGICA DE SOCKETS Y KAFKA
+// ==========================================
 const userSockets = new Map<string, string>();
 const socketUsers = new Map<string, string>();
 
@@ -80,7 +98,7 @@ async function connectKafka() {
   });
 
   await consumer.run({
-    eachMessage: async ({ topic, partition, message }) => {
+    eachMessage: async ({ topic, message }) => {
       try {
         const event = JSON.parse(message.value?.toString() || "{}");
         await processKafkaEvent(topic, event);
@@ -89,7 +107,7 @@ async function connectKafka() {
       }
     },
   });
-  console.log("Kafka connected for chat service");
+  console.log("✅ Chat Service: Kafka connected");
 }
 
 async function processKafkaEvent(topic: string, event: any) {
@@ -115,93 +133,40 @@ async function processKafkaEvent(topic: string, event: any) {
   }
 }
 
+// EVENTOS DE SOCKET.IO
 io.on("connection", (socket) => {
   console.log(`New socket connection: ${socket.id}`);
 
-  socket.on("authenticate", (data: { userId: string; token?: string }) => {
+  socket.on("authenticate", (data: { userId: string }) => {
     const { userId } = data;
     userSockets.set(userId, socket.id);
     socketUsers.set(socket.id, userId);
     socket.join(`user:${userId}`);
-
     socket.emit("authenticated", { success: true, userId });
     io.emit("user-status", { userId, status: "online" });
-
-    producer.send({
-      topic: "user-online",
-      messages: [
-        {
-          key: userId,
-          value: JSON.stringify({
-            userId,
-            socketId: socket.id,
-            timestamp: new Date().toISOString(),
-          }),
-        },
-      ],
-    });
   });
 
   socket.on("join-room", (roomId: string) => {
     socket.join(`room:${roomId}`);
     const userId = socketUsers.get(socket.id);
     if (userId) redis.sadd(`room:${roomId}:members`, userId);
-    redis.hset(`room:${roomId}`, "lastActivity", new Date().toISOString());
     socket.emit("room-joined", { roomId });
   });
 
-  socket.on("leave-room", (roomId: string) => {
-    socket.leave(`room:${roomId}`);
-    const userId = socketUsers.get(socket.id);
-    if (userId) redis.srem(`room:${roomId}:members`, userId);
-  });
-
   socket.on("send-message", async (data) => {
-    try {
-      const { roomId, content, senderId } = data;
-      if (!roomId || !content || !senderId) {
-        socket.emit("error", { message: "Missing required fields" });
-        return;
-      }
-      const message = {
-        id: `msg_${Date.now()}_${Math.random()}`,
-        roomId,
-        senderId,
-        content,
-        timestamp: new Date().toISOString(),
-        type: "chat",
-      };
-
-      await redis.lpush(`room:${roomId}:messages`, JSON.stringify(message));
-      await redis.ltrim(`room:${roomId}:messages`, 0, 99);
-
-      io.to(`room:${roomId}`).emit("message", message);
-
-      await producer.send({
-        topic: "chat-message",
-        messages: [{ key: roomId, value: JSON.stringify(message) }],
-      });
-    } catch (error) {
-      console.error("Error sending message:", error);
-      socket.emit("error", { message: "Failed to send message" });
-    }
-  });
-
-  socket.on("get-messages", async (roomId: string, callback) => {
-    try {
-      const messages = await redis.lrange(`room:${roomId}:messages`, 0, 50);
-      const parsedMessages = messages.map((msg) => JSON.parse(msg)).reverse();
-      callback({ success: true, messages: parsedMessages });
-    } catch (error) {
-      callback({ success: false, error: "Failed to fetch messages" });
-    }
-  });
-
-  socket.on("typing", (data) => {
-    const { roomId, userId, isTyping } = data;
-    socket
-      .to(`room:${roomId}`)
-      .emit("user-typing", { userId, isTyping, roomId });
+    const { roomId, content, senderId } = data;
+    const message = {
+      id: `msg_${Date.now()}`,
+      roomId,
+      senderId,
+      content,
+      timestamp: new Date().toISOString(),
+    };
+    io.to(`room:${roomId}`).emit("message", message);
+    await producer.send({
+      topic: "chat-message",
+      messages: [{ key: roomId, value: JSON.stringify(message) }],
+    });
   });
 
   socket.on("disconnect", () => {
@@ -210,32 +175,22 @@ io.on("connection", (socket) => {
       userSockets.delete(userId);
       socketUsers.delete(socket.id);
       io.emit("user-status", { userId, status: "offline" });
-      producer.send({
-        topic: "user-offline",
-        messages: [
-          {
-            key: userId,
-            value: JSON.stringify({
-              userId,
-              timestamp: new Date().toISOString(),
-            }),
-          },
-        ],
-      });
     }
   });
 });
 
+// ==========================================
+// ARRANQUE DEL SERVIDOR
+// ==========================================
 async function startServer() {
   try {
     await connectKafka();
-
-    // 👇 CORRECCIÓN IMPORTANTE: AÑADIDO "0.0.0.0"
+    // Escuchamos en 0.0.0.0 para que Docker permita el acceso externo
     server.listen(Number(PORT), "0.0.0.0", () => {
-      console.log(`Chat service (WebSocket) listening on port ${PORT}`);
+      console.log(`🚀 Chat service (WebSocket) listening on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start chat service:", error);
+    console.error("❌ Failed to start chat service:", error);
     process.exit(1);
   }
 }
