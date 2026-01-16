@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { ApiClient, User } from "@/lib/api/client";
+import { getApiUrl } from "@/config/api";
 import RequestModal from "@/components/RequestModal";
 
 export default function ProfilePage() {
@@ -22,17 +23,17 @@ export default function ProfilePage() {
     const loadUserProfile = async () => {
       try {
         setIsLoading(true);
-        const result = await ApiClient.users.getUserProfile(userId);
 
-        // CORRECCIÓN AQUÍ: Verificamos result.data y accedemos a result.data.user
-        if (result.success && result.data) {
-          setUser(result.data.user);
+        const result = await ApiClient.get(getApiUrl("profile", userId));
+
+        if (result.profile) {
+          setUser(result.profile);
         } else {
-          setError(result.error || "Usuario no encontrado");
+          setError("Perfil no encontrado");
         }
       } catch (err) {
-        setError("Error al cargar el perfil");
         console.error(err);
+        setError("Error al cargar el perfil");
       } finally {
         setIsLoading(false);
       }
@@ -63,9 +64,7 @@ export default function ProfilePage() {
           <span
             key={star}
             className={`text-xl ${
-              star <= Math.round(rating)
-                ? "text-yellow-400"
-                : "text-gray-300"
+              star <= Math.round(rating) ? "text-yellow-400" : "text-gray-300"
             }`}
           >
             ★
@@ -164,8 +163,7 @@ export default function ProfilePage() {
                 {/* Stats */}
                 <div className="flex space-x-6 text-sm text-gray-600">
                   <span>
-                    📅 Miembro desde{" "}
-                    {safeCreatedAt.toLocaleDateString("es-ES")}
+                    📅 Miembro desde {safeCreatedAt.toLocaleDateString("es-ES")}
                   </span>
                 </div>
               </div>
