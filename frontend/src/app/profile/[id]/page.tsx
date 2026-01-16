@@ -12,7 +12,9 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const params = useParams();
   const userId = params.id as string;
-
+  interface UserProfileResponse {
+    user: User;
+  }
   // Usamos la interfaz User importada
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,10 +26,10 @@ export default function ProfilePage() {
       try {
         setIsLoading(true);
 
-        const result = await ApiClient.get(getApiUrl("profile", userId));
+        const result = await ApiClient.users.getUserProfile(userId);
 
-        if (result.profile) {
-          setUser(result.profile);
+        if (result.success && result.data?.user) {
+          setUser(result.data.user);
         } else {
           setError("Perfil no encontrado");
         }
@@ -39,9 +41,7 @@ export default function ProfilePage() {
       }
     };
 
-    if (userId) {
-      loadUserProfile();
-    }
+    if (userId) loadUserProfile();
   }, [userId]);
 
   // Valores seguros (si user existe)
