@@ -171,12 +171,13 @@ export default function Dashboard() {
 
         const result = await ApiClient.posts.getPosts(params);
 
-        if (result.success && result.posts) {
-          setPosts(result.posts);
+        if (result.success && result.data?.posts) {
+          setPosts(result.data.posts);
         } else {
           setPosts([]);
-          setPostsError(result.error || "Error cargando publicaciones");
         }
+
+        setPostsError(result.error || "Error cargando publicaciones");
       } catch {
         setPostsError("Error de conexión con posts-service");
         setPosts([]);
@@ -204,9 +205,9 @@ export default function Dashboard() {
 
         const result = await ApiClient.users.searchUsers(params);
 
-        if (result.success && result.users) {
-          setPeople(result.users);
-          setPeopleCount(result.total || 0);
+        if (result.success && result.data?.users) {
+          setPeople(result.data.users);
+          setPeopleCount(result.data.total || 0);
         } else {
           setPeople([]);
           setPeopleCount(0);
