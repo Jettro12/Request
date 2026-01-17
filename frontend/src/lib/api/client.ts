@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 // ==========================================
-// INTERFACES - ✅ AÑADIDA INTERFAZ POST
+// INTERFACES
 // ==========================================
 export interface User {
   id: string;
@@ -45,6 +45,13 @@ export interface Post {
     career?: string;
     rating?: number;
   };
+}
+
+export interface UsersResponse {
+  users: User[];
+  total?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface ApiResponse<T = any> {
@@ -116,6 +123,8 @@ export class ApiClient {
         : "";
 
     const fullUrl = query ? `${url}?${query}` : url;
+    console.log("🌐 [GET]:", fullUrl);
+
     const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
     return this.handleResponse<T>(response);
   }
@@ -171,6 +180,15 @@ export class ApiClient {
       try {
         const url = getApiUrl("users", userId);
         return await ApiClient.get<ApiResponse>(url);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    // ✅ CORRECCIÓN: Añadido searchUsers para el Dashboard
+    searchUsers: async (params: any): Promise<ApiResponse<UsersResponse>> => {
+      try {
+        const url = getApiUrl("users", "search");
+        return await ApiClient.get<ApiResponse<UsersResponse>>(url, params);
       } catch (error: any) {
         return { success: false, error: error.message };
       }
