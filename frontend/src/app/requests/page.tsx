@@ -159,7 +159,7 @@ export default function RequestsPage() {
 
                   <div className="flex items-center space-x-2">
                     <Link
-                      href={`/chat/${activeTab === "sent" ? request.toUserId : request.fromUserId}`}
+                      href={`/chat/${activeTab === "sent" ? request.toUser.id : request.fromUser.id}`}
                       className="flex-1 md:flex-none text-center bg-gray-50 hover:bg-gray-100 text-gray-700 px-6 py-2.5 rounded-xl text-sm font-bold border transition"
                     >
                       💬 Chat
