@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 // ==========================================
-// INTERFACES
+// INTERFACES - ✅ AÑADIDA INTERFAZ POST
 // ==========================================
 export interface User {
   id: string;
@@ -29,6 +29,22 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   avatar?: string;
+}
+
+export interface Post {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  careerSpace: string;
+  skills: string[];
+  createdAt: string;
+  author: {
+    id: string;
+    name: string;
+    career?: string;
+    rating?: number;
+  };
 }
 
 export interface ApiResponse<T = any> {
@@ -172,7 +188,7 @@ export class ApiClient {
   static posts = {
     getPosts: async (params?: any) => {
       const url = getApiUrl("posts", "");
-      return ApiClient.get<ApiResponse>(url, params);
+      return ApiClient.get<ApiResponse<{ posts: Post[] }>>(url, params);
     },
     createPost: async (data: any) => {
       const url = getApiUrl("posts", "");
@@ -220,7 +236,6 @@ export class ApiClient {
   };
 
   static chat = {
-    // ✅ CORRECCIÓN CRÍTICA: Añadido getUserConversations que faltaba
     getUserConversations: async (
       userId: string,
     ): Promise<ApiResponse<{ conversations: any[] }>> => {
@@ -265,10 +280,6 @@ export class ApiClient {
   };
 
   static ratings = {
-    getUserRating: async (userId: string) => {
-      const url = getApiUrl("ratings", "");
-      return ApiClient.get<ApiResponse>(url, { toUser: userId });
-    },
     submitRating: async (data: any) => {
       const url = getApiUrl("ratings", "");
       return ApiClient.post<ApiResponse>(url, data);
