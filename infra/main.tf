@@ -1,13 +1,10 @@
 ############################################
-# PROVIDER
+# PROVIDER & VARIABLES
 ############################################
 provider "aws" {
   region = "us-east-1"
 }
 
-############################################
-# VARIABLES
-############################################
 variable "ghcr_token" {
   type      = string
   sensitive = true
@@ -40,7 +37,7 @@ variable "supabase_anon_key" {
 }
 
 ############################################
-# DATA (FILTRO DE ZONAS COMPATIBLES)
+# DATA & SECURITY GROUPS
 ############################################
 data "aws_vpc" "default" {
   default = true
@@ -51,17 +48,11 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
-
-  # Filtro para evitar zonas sin soporte t3.medium (como us-east-1e)
   filter {
     name   = "availability-zone"
     values = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1f"]
   }
 }
-
-############################################
-# SECURITY GROUPS
-############################################
 
 resource "aws_security_group" "alb_sg" {
   name   = "alb-sg"
@@ -112,6 +103,12 @@ resource "aws_security_group" "ec2_sg" {
     protocol    = "tcp"
     cidr_blocks = ["${var.my_ip}/32"]
   }
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion_sg.id]
+  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -144,9 +141,8 @@ resource "aws_security_group" "infra_sg" {
 }
 
 ############################################
-# INFRAESTRUCTURA (REDIS, MQTT, BASTION)
+# INFRAESTRUCTURA (Redis, MQTT, Bastion)
 ############################################
-
 resource "aws_elasticache_cluster" "redis" {
   cluster_id           = "app-redis"
   engine               = "redis"
@@ -183,9 +179,8 @@ resource "aws_instance" "bastion" {
 }
 
 ############################################
-# LAUNCH TEMPLATE
+# LAUNCH TEMPLATE & USER DATA
 ############################################
-
 resource "aws_launch_template" "app_lt" {
   name_prefix   = "app-lt-"
   image_id      = "ami-0c02fb55956c7d316"
@@ -208,27 +203,20 @@ resource "aws_launch_template" "app_lt" {
     mkdir -p /app/nginx
     cd /app
 
-    # 🔥 GENERACIÓN DINÁMICA DE .ENV 🔥
     cat << 'ENV' > .env
     DATABASE_URL="${var.database_url}"
     NEXTAUTH_SECRET="${var.nextauth_secret}"
     NEXT_PUBLIC_SUPABASE_URL="${var.supabase_url}"
     NEXT_PUBLIC_SUPABASE_ANON_KEY="${var.supabase_anon_key}"
-    
-    # Inyección automática de infraestructura
     REDIS_HOST="${aws_elasticache_cluster.redis.cache_nodes[0].address}"
-    REDIS_PORT="6379"
     REDIS_URL="redis://${aws_elasticache_cluster.redis.cache_nodes[0].address}:6379"
     MQTT_BROKER="mqtt://${aws_instance.mqtt_broker.private_ip}:1883"
     KAFKA_BROKER="kafka:9092"
-
-    # Inyección dinámica del DNS del ALB
+    RABBITMQ_URL="amqp://admin:admin@rabbitmq:5672"
     NEXTAUTH_URL="http://${aws_lb.app_alb.dns_name}"
-    # 🔥 CORRECCIÓN CRÍTICA: Se añade /api para que Nginx diferencie llamadas de datos de navegación
     NEXT_PUBLIC_API_BASE_URL="http://${aws_lb.app_alb.dns_name}/api"
     ENV
 
-    # Inyectar archivos de configuración desde el repo a la instancia
     cat << 'COMPOSE' > docker-compose.prod.yml
     ${file("docker-compose.prod.yml")}
     COMPOSE
@@ -237,12 +225,10 @@ resource "aws_launch_template" "app_lt" {
     ${file("../nginx/nginx.conf")}
     NGINX
 
-    # Reemplazo dinámico del DNS en Nginx para CORS
     sed -i "s/INSERT_ALB_DNS_HERE/${aws_lb.app_alb.dns_name}/g" nginx/nginx.conf
 
-    # Despliegue forzando descarga de nuevas imágenes (Fix para el bug de despliegue)
     docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
-    /usr/local/bin/docker-compose -f docker-compose.prod.yml down
+    /usr/local/bin/docker-compose -f docker-compose.prod.yml down -v
     /usr/local/bin/docker-compose -f docker-compose.prod.yml pull
     /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --force-recreate
   EOF
@@ -252,7 +238,6 @@ resource "aws_launch_template" "app_lt" {
 ############################################
 # ALB & ASG
 ############################################
-
 resource "aws_lb" "app_alb" {
   name               = "app-alb"
   load_balancer_type = "application"
@@ -305,6 +290,14 @@ output "redis_endpoint" {
   value = aws_elasticache_cluster.redis.cache_nodes[0].address
 }
 
-output "bastion_ssh" {
+output "bastion_public_ip" {
+  value = aws_instance.bastion.public_ip
+}
+
+output "bastion_ssh_command" {
   value = "ssh -i ${var.ssh_key_name}.pem ec2-user@${aws_instance.bastion.public_ip}"
+}
+
+output "mqtt_private_ip" {
+  value = aws_instance.mqtt_broker.private_ip
 }
