@@ -84,9 +84,9 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
+      - frontend
       - auth-service
       - users-service
-      - posts-service
     networks:
       - microservices-net
 
@@ -94,11 +94,9 @@ services:
     image: ghcr.io/jettro12/frontend:latest
     container_name: frontend
     restart: always
-    env_file: [./.env]
-    environment:
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    env_file: .env
+    expose:
+      - "3000"
     networks:
       - microservices-net
 
@@ -109,7 +107,9 @@ services:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4004"
     networks:
       - microservices-net
 
@@ -117,7 +117,9 @@ services:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4007"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -128,7 +130,9 @@ services:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4002"
     depends_on:
       kafka:
         condition: service_healthy
@@ -139,7 +143,9 @@ services:
     image: ghcr.io/jettro12/requests-service:latest
     container_name: requests-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4003"
     networks:
       - microservices-net
 
@@ -147,7 +153,9 @@ services:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4005"
     networks:
       - microservices-net
 
@@ -155,7 +163,9 @@ services:
     image: ghcr.io/jettro12/notification-service:latest
     container_name: notification-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4001"
     depends_on:
       kafka:
         condition: service_healthy
@@ -166,7 +176,9 @@ services:
     image: ghcr.io/jettro12/ratings-service:latest
     container_name: ratings-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4006"
     networks:
       - microservices-net
 
@@ -174,7 +186,9 @@ services:
     image: ghcr.io/jettro12/messages-service:latest
     container_name: messages-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4008"
     depends_on:
       kafka:
         condition: service_healthy
@@ -185,7 +199,9 @@ services:
     image: ghcr.io/jettro12/conversations-service:latest
     container_name: conversations-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4009"
     depends_on:
       kafka:
         condition: service_healthy
@@ -196,7 +212,9 @@ services:
     image: ghcr.io/jettro12/chat-service:latest
     container_name: chat-service
     restart: always
-    env_file: [./.env]
+    env_file: .env
+    expose:
+      - "4010"
     depends_on:
       kafka:
         condition: service_healthy
