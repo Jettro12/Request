@@ -23,7 +23,11 @@ export default function ProfilePage() {
         if (result.success && result.data?.user) {
           setUser(result.data.user);
         } else {
-          setError(result.error || "Error al cargar el perfil");
+          // No bloqueamos con error si ya tenemos datos en la sesión
+          console.warn(
+            "No se pudo obtener el perfil extendido, usando datos de sesión",
+          );
+          setError(result.error || "");
         }
       } catch (err) {
         setError("Error de conexión");
@@ -35,20 +39,28 @@ export default function ProfilePage() {
     if (status === "authenticated") loadUserProfile();
   }, [session, status]);
 
-  // Manejo de estados de carga y acceso
-  if (status === "loading" || isLoading) return <LoadingScreen />;
-  if (status !== "authenticated") return <AccessRestricted />;
-  if (error && !user) return <ErrorDisplay error={error} />;
+  // Manejo de estados de carga
+  if (status === "loading") return <LoadingScreen />;
+  if (status === "unauthenticated") return <AccessRestricted />;
 
-  // Valores seguros para evitar errores de renderizado
+  // CORRECCIÓN: Solo mostramos pantalla de error si NO hay sesión Y falló el microservicio
+  if (error && !user && !session?.user) return <ErrorDisplay error={error} />;
+
+  /* =========================
+      LÓGICA DE PRIORIDAD (Session fallback)
+     ========================= */
   const safeName = user?.name || session?.user?.name || "Usuario";
-  const safeCareer = user?.career || "Ingeniería en Sistemas";
-  const safeSemester = user?.semester || "?";
-  const safeRating = user?.rating || 0;
-  const safeReviewCount = user?.reviewCount || 0;
-  const safeSkills = user?.skills || [];
-  const safeInterests = user?.interests || [];
+  const safeEmail = user?.email || session?.user?.email || "";
+  const safeCareer = user?.career || session?.user?.career || "No especificado";
+  const safeSemester = user?.semester || session?.user?.semester || "?";
+  const safeRating = user?.rating || session?.user?.rating || 0;
+  const safeReviewCount = user?.reviewCount || session?.user?.reviewCount || 0;
   const safeBio = user?.bio || "";
+  const safeSkills =
+    (user?.skills?.length ? user.skills : session?.user?.skills) || [];
+  const safeInterests =
+    (user?.interests?.length ? user.interests : session?.user?.interests) || [];
+
   const safeCreatedAt = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString("es-ES")
     : "Reciente";
@@ -75,7 +87,7 @@ export default function ProfilePage() {
                     </p>
                   </div>
                   <div className="mt-4 md:mt-0 bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center space-x-4">
-                    <div className="text-center">
+                    <div className="text-center px-2">
                       <div className="text-2xl font-black text-gray-900">
                         {safeRating > 0 ? safeRating.toFixed(1) : "—"}
                       </div>
@@ -84,7 +96,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <div className="h-8 w-px bg-gray-200"></div>
-                    <div className="text-center">
+                    <div className="text-center px-2">
                       <div className="text-2xl font-black text-gray-900">
                         {safeReviewCount}
                       </div>
@@ -101,10 +113,9 @@ export default function ProfilePage() {
                       : "Aún no has agregado una descripción a tu perfil."}
                   </p>
                 </div>
-                <div className="mt-4 flex items-center text-sm text-gray-400">
+                <div className="mt-4 flex flex-wrap justify-center md:justify-start items-center text-sm text-gray-400 gap-4">
                   <span>📅 Miembro desde {safeCreatedAt}</span>
-                  <span className="mx-2">•</span>
-                  <span>✉️ {session?.user?.email}</span>
+                  <span>✉️ {safeEmail}</span>
                 </div>
               </div>
             </div>
@@ -128,8 +139,8 @@ export default function ProfilePage() {
                       </span>
                     ))
                   ) : (
-                    <p className="text-gray-400 text-sm">
-                      No has seleccionado habilidades.
+                    <p className="text-gray-400 text-sm italic">
+                      No has seleccionado habilidades técnicas.
                     </p>
                   )}
                 </div>
@@ -150,8 +161,8 @@ export default function ProfilePage() {
                       </span>
                     ))
                   ) : (
-                    <p className="text-gray-400 text-sm">
-                      No has seleccionado intereses.
+                    <p className="text-gray-400 text-sm italic">
+                      Aún no has definido tus áreas de interés.
                     </p>
                   )}
                 </div>
@@ -161,7 +172,7 @@ export default function ProfilePage() {
             {/* COLUMNA DERECHA: ACCIONES */}
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 text-center md:text-left">
                   Gestión de Perfil
                 </h2>
                 <div className="space-y-3">
@@ -192,26 +203,24 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-4"></div>
-      <p className="text-gray-500 font-medium">
-        Sincronizando con Request-App...
-      </p>
+      <p className="text-gray-500 font-medium">Sincronizando perfil...</p>
     </div>
   );
 }
 
 function AccessRestricted() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="text-center">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+      <div className="text-center bg-white p-8 rounded-3xl shadow-sm border">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Acceso Restringido
         </h1>
         <p className="text-gray-600 mb-6">
-          Debes estar autenticado para ver esta sección.
+          Inicia sesión para ver tu perfil universitario.
         </p>
         <Link
           href="/login"
-          className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold"
+          className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold inline-block"
         >
           Ir al Login
         </Link>
@@ -222,15 +231,15 @@ function AccessRestricted() {
 
 function ErrorDisplay({ error }: { error: string }) {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-red-50 text-red-700 p-6 rounded-2xl border border-red-100 text-center max-w-md">
-        <p className="text-lg font-bold mb-2">¡Ups! Algo salió mal</p>
-        <p className="mb-4 text-sm">{error}</p>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+      <div className="bg-red-50 text-red-700 p-8 rounded-3xl border border-red-100 text-center max-w-md shadow-sm">
+        <p className="text-lg font-bold mb-2">Error de Sincronización</p>
+        <p className="mb-6 text-sm opacity-80">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold"
+          className="bg-red-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-red-700 transition-colors"
         >
-          Reintentar
+          Reintentar conexión
         </button>
       </div>
     </div>
