@@ -26,10 +26,12 @@ export default function ProfilePage() {
 
         // Extracción estricta de la data según la respuesta del microservicio
         const userData =
-          result.data?.user || result.user || (result.id ? result : null);
+          result.data?.user ||
+          (result as any).user ||
+          ((result as any).id ? result : null);
 
         if (result.success && userData) {
-          setUser(userData);
+          setUser(userData as User); // Hacemos un cast final a nuestra interfaz User
           setError("");
         } else {
           setError(
@@ -80,7 +82,9 @@ export default function ProfilePage() {
                 <div className="mt-4 md:mt-0 bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center space-x-4">
                   <div className="text-center px-2">
                     <div className="text-2xl font-black text-gray-900">
-                      {user.rating > 0 ? user.rating.toFixed(1) : "—"}
+                      {user.rating && user.rating > 0
+                        ? user.rating.toFixed(1)
+                        : "—"}
                     </div>
                     <div className="text-xs text-gray-400 uppercase tracking-wider">
                       Rating
