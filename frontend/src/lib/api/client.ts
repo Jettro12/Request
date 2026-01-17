@@ -100,14 +100,11 @@ export class ApiClient {
         : "";
 
     const fullUrl = query ? `${url}?${query}` : url;
-    console.log("🌐 [GET]:", fullUrl);
-
     const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
     return this.handleResponse<T>(response);
   }
 
   static async post<T>(url: string, body?: any): Promise<T> {
-    console.log("🌐 [POST]:", url);
     const response = await this.fetchWithAuth(url, {
       method: "POST",
       body: JSON.stringify(body),
@@ -137,7 +134,7 @@ export class ApiClient {
   }
 
   // ==========================================
-  // SERVICIOS (DEFINICIÓN DE ENDPOINTS)
+  // SERVICIOS
   // ==========================================
 
   static auth = {
@@ -162,24 +159,12 @@ export class ApiClient {
         return { success: false, error: error.message };
       }
     },
-    updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("profile", userId);
-        return await ApiClient.put<ApiResponse>(url, data);
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
   };
 
   static posts = {
     getPosts: async (params?: any) => {
       const url = getApiUrl("posts", "");
       return ApiClient.get<ApiResponse>(url, params);
-    },
-    createPost: async (data: any) => {
-      const url = getApiUrl("posts", "");
-      return ApiClient.post<ApiResponse>(url, data);
     },
   };
 
@@ -188,20 +173,42 @@ export class ApiClient {
       const url = getApiUrl("requests", "");
       return ApiClient.post<ApiResponse>(url, data);
     },
-  };
-
-  // ✅ SERVICIO DE CHAT CORREGIDO (Lo que pedía el error de GitHub)
-  static chat = {
-    getUserConversations: async (
-      userId: string,
-    ): Promise<ApiResponse<{ conversations: any[] }>> => {
+    // ✅ Agregado para arreglar el error de compilación
+    getByChat: async (
+      otherUserId: string,
+    ): Promise<ApiResponse<{ request: any }>> => {
       try {
-        const url = getApiUrl("conversations", `users/${userId}/conversations`);
+        const url = getApiUrl("requests", `chat/${otherUserId}`);
         return await ApiClient.get<ApiResponse>(url);
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
+    updateRequestStatus: async (
+      requestId: string,
+      status: string,
+    ): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("requests", `${requestId}/status`);
+        return await ApiClient.put<ApiResponse>(url, { status });
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    completeRequest: async (
+      requestId: string,
+      data: any,
+    ): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("requests", `${requestId}/complete`);
+        return await ApiClient.post<ApiResponse>(url, data);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+  };
+
+  static chat = {
     getConversationMessages: async (
       conversationId: string,
     ): Promise<ApiResponse<{ messages: any[] }>> => {
@@ -215,7 +222,7 @@ export class ApiClient {
     sendMessage: async (
       conversationId: string,
       data: any,
-    ): Promise<ApiResponse<{ messageId: string }>> => {
+    ): Promise<ApiResponse> => {
       try {
         const url = getApiUrl("messages", "");
         return await ApiClient.post<ApiResponse>(url, {
@@ -236,10 +243,6 @@ export class ApiClient {
   };
 
   static ratings = {
-    getUserRating: async (userId: string) => {
-      const url = getApiUrl("ratings", "");
-      return ApiClient.get<ApiResponse>(url, { toUser: userId });
-    },
     submitRating: async (data: any) => {
       const url = getApiUrl("ratings", "");
       return ApiClient.post<ApiResponse>(url, data);
