@@ -8,31 +8,13 @@ import { useRouter } from "next/navigation";
 import { ApiClient, type Post, type User } from "@/lib/api/client";
 
 /* =========================
-   TIPOS
+    TIPOS & CONSTANTES
 ========================= */
 
 interface CareerSpace {
   name: string;
   emoji?: string;
 }
-
-interface PostType {
-  label: string;
-  color: string;
-}
-
-interface PostAuthor {
-  id: string;
-  name: string;
-  career?: string;
-  semester?: number;
-  rating?: number;
-  skills?: string[];
-}
-
-/* =========================
-   CONSTANTES
-========================= */
 
 const careerSpaces: CareerSpace[] = [
   { name: "Todos los espacios", emoji: "🌍" },
@@ -45,39 +27,9 @@ const careerSpaces: CareerSpace[] = [
   { name: "Artes", emoji: "🎭" },
 ];
 
-const postTypes: Record<string, PostType> = {
-  PROJECT: { label: "Proyecto", color: "bg-blue-100 text-blue-800" },
-  JOB: { label: "Empleo", color: "bg-green-100 text-green-800" },
-  COLLABORATION: {
-    label: "Colaboración",
-    color: "bg-purple-100 text-purple-800",
-  },
-  ENTREPRENEURSHIP: {
-    label: "Emprendimiento",
-    color: "bg-orange-100 text-orange-800",
-  },
-  ANNOUNCEMENT: { label: "Anuncio", color: "bg-yellow-100 text-yellow-800" },
-};
-
 /* =========================
-   COMPONENTES AUX
+    COMPONENTES AUXILIARES
 ========================= */
-
-const RatingStars = ({ rating = 0 }: { rating?: number }) => {
-  const rounded = Math.round(rating);
-  return (
-    <div className="flex space-x-1">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <span
-          key={s}
-          className={s <= rounded ? "text-yellow-400" : "text-gray-300"}
-        >
-          ★
-        </span>
-      ))}
-    </div>
-  );
-};
 
 const LoadingSpinner = () => (
   <div className="text-center py-12">
@@ -95,38 +47,15 @@ const EmptyState = ({
   title: string;
   message: string;
 }) => (
-  <div className="bg-white rounded-xl p-12 text-center">
+  <div className="bg-white rounded-xl p-12 text-center shadow-sm">
     <div className="text-6xl mb-4">{emoji}</div>
-    <h3 className="text-xl font-semibold">{title}</h3>
+    <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
     <p className="text-gray-600 mt-2">{message}</p>
   </div>
 );
 
 /* =========================
-   AVATAR (FIX TAILWIND)
-========================= */
-
-const UserAvatar = ({
-  user,
-  size = 10,
-}: {
-  user: User | PostAuthor;
-  size?: number;
-}) => (
-  <Link href={`/profile/${user.id}`}>
-    <div
-      style={{ width: size * 4, height: size * 4 }}
-      className="bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 cursor-pointer"
-    >
-      <span className="font-semibold text-gray-700">
-        {user.name?.charAt(0) || "U"}
-      </span>
-    </div>
-  </Link>
-);
-
-/* =========================
-   DASHBOARD
+    DASHBOARD MAIN
 ========================= */
 
 export default function Dashboard() {
@@ -139,48 +68,40 @@ export default function Dashboard() {
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [people, setPeople] = useState<User[]>([]);
-  const [peopleCount, setPeopleCount] = useState(0);
-
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [postsError, setPostsError] = useState("");
   const [peopleError, setPeopleError] = useState("");
 
-  /* ---------- Auth ---------- */
-
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
-  /* ---------- Load Posts ---------- */
-
+  /* ---------- Cargar Publicaciones ---------- */
   useEffect(() => {
     if (view !== "posts") return;
 
     const loadPosts = async () => {
       try {
         setLoadingPosts(true);
-        setPostsError("");
+        setPostsError(""); // Resetear error al iniciar
 
         const params: any = { page: 1, limit: 20 };
-
         if (selectedCareer !== "Todos los espacios")
           params.careerSpace = selectedCareer;
-
         if (activeTab !== "all") params.type = activeTab;
 
         const result = await ApiClient.posts.getPosts(params);
 
         if (result.success && result.data?.posts) {
           setPosts(result.data.posts);
+          setPostsError(""); // ✅ ÉXITO: Limpiamos cualquier error
         } else {
           setPosts([]);
+          setPostsError(result.error || "No se encontraron publicaciones");
         }
-
-        setPostsError(result.error || "Error cargando publicaciones");
-      } catch {
-        setPostsError("Error de conexión con posts-service");
-        setPosts([]);
+      } catch (err) {
+        setPostsError("Error de conexión con el servidor");
       } finally {
         setLoadingPosts(false);
       }
@@ -189,8 +110,7 @@ export default function Dashboard() {
     loadPosts();
   }, [view, selectedCareer, activeTab]);
 
-  /* ---------- Load People ---------- */
-
+  /* ---------- Cargar Personas ---------- */
   useEffect(() => {
     if (view !== "people") return;
 
@@ -207,16 +127,13 @@ export default function Dashboard() {
 
         if (result.success && result.data?.users) {
           setPeople(result.data.users);
-          setPeopleCount(result.data.total || 0);
+          setPeopleError(""); // ✅ ÉXITO: Limpiamos error
         } else {
           setPeople([]);
-          setPeopleCount(0);
-          setPeopleError(result.error || "Error cargando usuarios");
+          setPeopleError(result.error || "No se encontraron usuarios");
         }
-      } catch {
-        setPeopleError("Error de conexión con users-service");
-        setPeople([]);
-        setPeopleCount(0);
+      } catch (err) {
+        setPeopleError("Error de conexión con el servicio de usuarios");
       } finally {
         setLoadingPeople(false);
       }
@@ -225,22 +142,14 @@ export default function Dashboard() {
     loadPeople();
   }, [view, selectedCareer]);
 
-  /* ---------- Loading ---------- */
-
-  if (status === "loading") {
+  if (status === "loading")
     return (
       <>
         <Header />
         <LoadingSpinner />
       </>
     );
-  }
-
   if (status !== "authenticated") return null;
-
-  /* =========================
-     RENDER
-  ========================= */
 
   return (
     <>
@@ -248,47 +157,57 @@ export default function Dashboard() {
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-6 py-8 grid lg:grid-cols-4 gap-8">
           {/* SIDEBAR */}
-          <aside className="bg-white p-6 rounded-xl space-y-6">
+          <aside className="bg-white p-6 rounded-xl space-y-4 shadow-sm h-fit">
+            <h2 className="font-bold text-gray-800 border-b pb-2">Vistas</h2>
             <button
               onClick={() => setView("posts")}
-              className={`w-full py-2 rounded ${
-                view === "posts" ? "bg-blue-600 text-white" : "bg-gray-100"
+              className={`w-full py-2 px-4 rounded-lg transition ${
+                view === "posts"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
               Publicaciones
             </button>
             <button
               onClick={() => setView("people")}
-              className={`w-full py-2 rounded ${
-                view === "people" ? "bg-blue-600 text-white" : "bg-gray-100"
+              className={`w-full py-2 px-4 rounded-lg transition ${
+                view === "people"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
               Personas
             </button>
 
-            {careerSpaces.map((c) => (
-              <button
-                key={c.name}
-                onClick={() => setSelectedCareer(c.name)}
-                className={`block w-full text-left px-3 py-2 rounded ${
-                  selectedCareer === c.name
-                    ? "bg-blue-100 text-blue-700"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                {c.emoji} {c.name}
-              </button>
-            ))}
+            <h2 className="font-bold text-gray-800 border-b pb-2 pt-4">
+              Carreras
+            </h2>
+            <div className="space-y-1">
+              {careerSpaces.map((c) => (
+                <button
+                  key={c.name}
+                  onClick={() => setSelectedCareer(c.name)}
+                  className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition ${
+                    selectedCareer === c.name
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {c.emoji} {c.name}
+                </button>
+              ))}
+            </div>
 
             <Link
               href="/posts"
-              className="block text-center bg-blue-600 text-white py-2 rounded"
+              className="block text-center bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition mt-4"
             >
               + Nueva Publicación
             </Link>
           </aside>
 
-          {/* MAIN */}
+          {/* CONTENIDO PRINCIPAL */}
           <section className="lg:col-span-3 space-y-6">
             {view === "posts" ? (
               loadingPosts ? (
@@ -299,16 +218,31 @@ export default function Dashboard() {
                 <EmptyState
                   emoji="📭"
                   title="Sin publicaciones"
-                  message="Crea la primera publicación"
+                  message="Aún no hay nada para mostrar aquí."
                 />
               ) : (
                 posts.map((post) => (
                   <div
                     key={post.id}
-                    className="bg-white p-6 rounded-xl shadow-sm"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition"
                   >
-                    <h2 className="text-xl font-bold">{post.title}</h2>
-                    <p className="text-gray-700 mt-2">{post.content}</p>
+                    <div className="flex justify-between items-start mb-4">
+                      <h2 className="text-xl font-bold text-gray-800">
+                        {post.title}
+                      </h2>
+                      <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-semibold uppercase">
+                        {post.type}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 leading-relaxed">
+                      {post.content}
+                    </p>
+                    <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm text-gray-500">
+                      <span>{post.careerSpace}</span>
+                      <span>
+                        {new Date(post.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
                 ))
               )
@@ -316,14 +250,36 @@ export default function Dashboard() {
               <LoadingSpinner />
             ) : peopleError ? (
               <EmptyState emoji="❌" title="Error" message={peopleError} />
+            ) : people.length === 0 ? (
+              <EmptyState
+                emoji="👥"
+                title="No hay usuarios"
+                message="Prueba con otra carrera."
+              />
             ) : (
-              people.map((u) => (
-                <div key={u.id} className="bg-white p-6 rounded-xl">
-                  <Link href={`/profile/${u.id}`}>
-                    <h3 className="font-semibold">{u.name}</h3>
-                  </Link>
-                </div>
-              ))
+              <div className="grid md:grid-cols-2 gap-4">
+                {people.map((u) => (
+                  <div
+                    key={u.id}
+                    className="bg-white p-4 rounded-xl shadow-sm flex items-center space-x-4 border border-gray-50"
+                  >
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                      {u.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <Link
+                        href={`/profile/${u.id}`}
+                        className="font-bold text-gray-800 hover:text-blue-600"
+                      >
+                        {u.name}
+                      </Link>
+                      <p className="text-xs text-gray-500">
+                        {u.career || "Estudiante"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         </div>
