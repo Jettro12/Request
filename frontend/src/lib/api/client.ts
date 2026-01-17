@@ -107,12 +107,21 @@ export class ApiClient {
     }
 
     if (!response.ok) {
+      // FIX: Aseguramos que el error siempre sea un string para el frontend
       throw new ApiError(
-        data.message || data.error || "Error en la solicitud",
+        data.message ||
+          data.error ||
+          `Error ${response.status}: ${response.statusText}`,
         response.status,
         data,
       );
     }
+
+    // FIX: Si el backend no envía { success: true }, se lo inyectamos si el status es 2xx
+    if (data && typeof data === "object" && data.success === undefined) {
+      return { success: true, data } as any;
+    }
+
     return data;
   }
 
@@ -136,8 +145,6 @@ export class ApiClient {
         : "";
 
     const fullUrl = query ? `${url}?${query}` : url;
-    console.log("🌐 [GET]:", fullUrl);
-
     const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
     return this.handleResponse<T>(response);
   }
@@ -184,7 +191,6 @@ export class ApiClient {
       const url = getApiUrl("auth", "register");
       return ApiClient.post<ApiResponse>(url, data);
     },
-    // ✅ Agregado logout para auth.service.ts
     logout: async () => {
       const url = getApiUrl("auth", "logout");
       return ApiClient.post<ApiResponse>(url, {});
@@ -221,13 +227,22 @@ export class ApiClient {
   };
 
   static posts = {
-    getPosts: async (params?: any) => {
-      const url = getApiUrl("posts", "");
-      return ApiClient.get<ApiResponse<{ posts: Post[] }>>(url, params);
+    // FIX: Agregado try/catch que faltaba para evitar crasheos en Dashboard
+    getPosts: async (params?: any): Promise<ApiResponse<{ posts: Post[] }>> => {
+      try {
+        const url = getApiUrl("posts", "");
+        return await ApiClient.get<ApiResponse>(url, params);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
-    createPost: async (data: any) => {
-      const url = getApiUrl("posts", "");
-      return ApiClient.post<ApiResponse>(url, data);
+    createPost: async (data: any): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("posts", "");
+        return await ApiClient.post<ApiResponse>(url, data);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
   };
 
@@ -320,15 +335,23 @@ export class ApiClient {
 
   static notifications = {
     getNotifications: async () => {
-      const url = getApiUrl("notifications", "");
-      return ApiClient.get<ApiResponse>(url);
+      try {
+        const url = getApiUrl("notifications", "");
+        return await ApiClient.get<ApiResponse>(url);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
   };
 
   static ratings = {
     submitRating: async (data: any) => {
-      const url = getApiUrl("ratings", "");
-      return ApiClient.post<ApiResponse>(url, data);
+      try {
+        const url = getApiUrl("ratings", "");
+        return await ApiClient.post<ApiResponse>(url, data);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
   };
 }
