@@ -52,7 +52,7 @@ export default function Dashboard() {
         const result = await ApiClient.posts.getPosts(params);
         const data =
           result.data?.posts ||
-          result.posts ||
+          (result as any).posts ||
           (Array.isArray(result) ? result : []);
 
         if (data.length > 0) {
