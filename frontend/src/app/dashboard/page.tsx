@@ -220,7 +220,7 @@ export default function Dashboard() {
                       </p>
                       <div className="flex items-center justify-between pt-6 border-t border-gray-50">
                         <Link
-                          href={`/profile/${post.authorId}`}
+                          href={`/profile/${post.author?.id}`}
                           className="flex items-center space-x-3 group/user"
                         >
                           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold border-2 border-white shadow-sm">
