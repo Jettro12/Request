@@ -114,16 +114,20 @@ export class ApiClient {
       );
     }
 
-    // 🛠️ NORMALIZADOR MÁGICO:
-    // Si el microservicio envió un array directamente, lo envolvemos en el formato que espera el Dashboard
+    // 🛠️ NORMALIZADOR MÁGICO: Transforma arrays o respuestas directas en el formato ApiResponse
     if (Array.isArray(data)) {
       return {
         success: true,
-        data: { posts: data, users: data, requests: data },
+        data: {
+          posts: data,
+          users: data,
+          requests: data,
+          messages: data,
+          conversations: data,
+        },
       } as any;
     }
 
-    // Si envió un objeto sin la propiedad 'success', se la ponemos
     if (data && typeof data === "object" && data.success === undefined) {
       return { success: true, data: data } as any;
     }
@@ -224,7 +228,8 @@ export class ApiClient {
     },
     updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
       try {
-        const url = getApiUrl("profile", userId);
+        // En tu users-service index: app.put("/:id/profile", updateProfile);
+        const url = getApiUrl("users", `${userId}/profile`);
         return await ApiClient.put<ApiResponse>(url, data);
       } catch (error: any) {
         return { success: false, error: error.message };
@@ -233,7 +238,6 @@ export class ApiClient {
   };
 
   static posts = {
-    // FIX: Agregado try/catch que faltaba para evitar crasheos en Dashboard
     getPosts: async (params?: any): Promise<ApiResponse<{ posts: Post[] }>> => {
       try {
         const url = getApiUrl("posts", "");
@@ -307,32 +311,34 @@ export class ApiClient {
       userId: string,
     ): Promise<ApiResponse<{ conversations: any[] }>> => {
       try {
-        const url = getApiUrl("conversations", `users/${userId}/conversations`);
+        // En tu conversations-service index: app.get("/user/:userId", ...);
+        const url = getApiUrl("conversations", `user/${userId}`);
         return await ApiClient.get<ApiResponse>(url);
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
     getConversationMessages: async (
-      conversationId: string,
+      u1: string,
+      u2: string,
     ): Promise<ApiResponse<{ messages: any[] }>> => {
       try {
-        const url = getApiUrl("chat", `rooms/${conversationId}`);
+        // En tu messages-service index: app.get("/history/:u1/:u2", ...);
+        const url = getApiUrl("messages", `history/${u1}/${u2}`);
         return await ApiClient.get<ApiResponse>(url);
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
-    sendMessage: async (
-      conversationId: string,
-      data: any,
-    ): Promise<ApiResponse> => {
+    sendMessage: async (data: {
+      senderId: string;
+      receiverId: string;
+      content: string;
+    }): Promise<ApiResponse> => {
       try {
+        // En tu messages-service index: app.post("/", ...);
         const url = getApiUrl("messages", "");
-        return await ApiClient.post<ApiResponse>(url, {
-          ...data,
-          conversationId,
-        });
+        return await ApiClient.post<ApiResponse>(url, data);
       } catch (error: any) {
         return { success: false, error: error.message };
       }
@@ -340,10 +346,19 @@ export class ApiClient {
   };
 
   static notifications = {
-    getNotifications: async () => {
+    getNotifications: async (): Promise<ApiResponse> => {
       try {
-        const url = getApiUrl("notifications", "");
+        // En tu notification-service index: app.get("/list", ...);
+        const url = getApiUrl("notifications", "list");
         return await ApiClient.get<ApiResponse>(url);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    markAllRead: async (): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("notifications", "read-all");
+        return await ApiClient.patch<ApiResponse>(url, {});
       } catch (error: any) {
         return { success: false, error: error.message };
       }
@@ -351,10 +366,18 @@ export class ApiClient {
   };
 
   static ratings = {
-    submitRating: async (data: any) => {
+    submitRating: async (data: any): Promise<ApiResponse> => {
       try {
         const url = getApiUrl("ratings", "");
         return await ApiClient.post<ApiResponse>(url, data);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    getUserRatings: async (userId: string): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("ratings", "");
+        return await ApiClient.get<ApiResponse>(url, { toUser: userId });
       } catch (error: any) {
         return { success: false, error: error.message };
       }
