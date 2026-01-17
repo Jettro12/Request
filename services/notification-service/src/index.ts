@@ -26,19 +26,20 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 app.use(express.json());
 
-// RUTA RAÍZ PARA EVITAR 404
+// RUTA RAÍZ
 app.get("/", (req, res) => {
   res.json({ status: "ok", service: "notification-service" });
 });
 
+// RUTAS DE LA API (Asegúrate de que Nginx use el rewrite /api/notifications/)
 app.post("/", sendNotification);
-app.get("/", getUserNotifications);
-app.patch("/", markAllAsRead);
+app.get("/list", getUserNotifications); // Cambiado a /list para evitar choque con GET /
+app.patch("/read-all", markAllAsRead);
 app.patch("/:id", markAsRead);
 
 app.get("/health", (_req, res) => {
@@ -50,53 +51,74 @@ app.get("/health", (_req, res) => {
 });
 
 const server = http.createServer(app);
-const io = new IOServer(server, { cors: { origin: "*" } });
+const io = new IOServer(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Estado global para evitar que Kafka se reinicie infinitamente si ya está corriendo
+let isConsumerRunning = false;
 
 io.on("connection", (socket) => {
   socket.on("join", (userId: string) => {
+    console.log(`👤 User ${userId} connected to notifications socket`);
     socket.join(userId);
   });
 });
 
 async function start() {
   try {
-    server.listen(PORT, "0.0.0.0", () =>
-      console.log(`Notification service listening on ${PORT}`)
-    );
-
+    // 1. Conectar Base de Datos
     await prisma.$connect();
+    console.log("✅ Notifications DB Connected");
+
+    // 2. Iniciar Kafka
     await initKafka();
+    console.log("✅ Kafka Initialized");
 
-    // 🔥 CORRECCIÓN DEL ERROR DE COMPILACIÓN 🔥
-    // Tipamos explícitamente el objeto que viene de Kafka
-    await startConsumerLoop(
-      async ({
-        topic,
-        partition,
-        message,
-      }: {
-        topic: string;
-        partition: number;
-        message: any;
-      }) => {
-        try {
-          if (!message.value) return;
+    // 3. Iniciar el bucle de consumo solo si no está activo
+    if (!isConsumerRunning) {
+      isConsumerRunning = true;
+      await startConsumerLoop(
+        async ({
+          topic,
+          message,
+        }: {
+          topic: string;
+          partition: number;
+          message: any;
+        }) => {
+          try {
+            if (!message.value) return;
 
-          const event = JSON.parse(message.value.toString());
+            const event = JSON.parse(message.value.toString());
 
-          if (event.action === "create" && event.notification) {
-            io.to(event.notification.userId).emit(
-              "new-notification",
-              event.notification
-            );
+            // Si el evento viene de otros servicios avisando de algo nuevo
+            if (event.action === "create" || event.notification) {
+              const payload = event.notification || event.post || event;
+
+              // Emitir vía Socket.io al usuario específico
+              if (payload.userId || payload.authorId) {
+                const targetId = payload.userId || payload.authorId;
+                io.to(targetId).emit("new-notification", payload);
+              }
+            }
+          } catch (err) {
+            console.error("❌ Error parsing Kafka message:", err);
           }
-        } catch (err) {
-          console.error("Error handling kafka message", err);
-        }
-      }
+        },
+      );
+      console.log("🚀 Kafka Consumer Loop started");
+    }
+
+    server.listen(PORT, "0.0.0.0", () =>
+      console.log(`🔔 Notification service listening on ${PORT}`),
     );
   } catch (error) {
-    console.error("Failed to start server", error);
+    console.error("❌ Failed to start notification-service:", error);
+    isConsumerRunning = false;
     process.exit(1);
   }
 }
