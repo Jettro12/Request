@@ -159,12 +159,24 @@ export class ApiClient {
         return { success: false, error: error.message };
       }
     },
+    updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("profile", userId);
+        return await ApiClient.put<ApiResponse>(url, data);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
   };
 
   static posts = {
     getPosts: async (params?: any) => {
       const url = getApiUrl("posts", "");
       return ApiClient.get<ApiResponse>(url, params);
+    },
+    createPost: async (data: any) => {
+      const url = getApiUrl("posts", "");
+      return ApiClient.post<ApiResponse>(url, data);
     },
   };
 
@@ -173,7 +185,6 @@ export class ApiClient {
       const url = getApiUrl("requests", "");
       return ApiClient.post<ApiResponse>(url, data);
     },
-    // ✅ Agregado para arreglar el error de compilación
     getByChat: async (
       otherUserId: string,
     ): Promise<ApiResponse<{ request: any }>> => {
@@ -209,6 +220,17 @@ export class ApiClient {
   };
 
   static chat = {
+    // ✅ CORRECCIÓN CRÍTICA: Añadido getUserConversations que faltaba
+    getUserConversations: async (
+      userId: string,
+    ): Promise<ApiResponse<{ conversations: any[] }>> => {
+      try {
+        const url = getApiUrl("conversations", `users/${userId}/conversations`);
+        return await ApiClient.get<ApiResponse>(url);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
     getConversationMessages: async (
       conversationId: string,
     ): Promise<ApiResponse<{ messages: any[] }>> => {
@@ -243,6 +265,10 @@ export class ApiClient {
   };
 
   static ratings = {
+    getUserRating: async (userId: string) => {
+      const url = getApiUrl("ratings", "");
+      return ApiClient.get<ApiResponse>(url, { toUser: userId });
+    },
     submitRating: async (data: any) => {
       const url = getApiUrl("ratings", "");
       return ApiClient.post<ApiResponse>(url, data);
