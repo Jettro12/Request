@@ -86,7 +86,7 @@ export default function Dashboard() {
         const result = await ApiClient.users.searchUsers(params);
         const data =
           result.data?.users ||
-          result.users ||
+          (result as any).users ||
           (Array.isArray(result) ? result : []);
 
         if (data.length > 0) {
