@@ -47,7 +47,6 @@ export interface Post {
   };
 }
 
-// ✅ AÑADIDA INTERFAZ REQUEST PARA EL BUILD
 export interface Request {
   id: string;
   type: string;
@@ -185,6 +184,11 @@ export class ApiClient {
       const url = getApiUrl("auth", "register");
       return ApiClient.post<ApiResponse>(url, data);
     },
+    // ✅ Agregado logout para auth.service.ts
+    logout: async () => {
+      const url = getApiUrl("auth", "logout");
+      return ApiClient.post<ApiResponse>(url, {});
+    },
   };
 
   static users = {
@@ -232,7 +236,6 @@ export class ApiClient {
       const url = getApiUrl("requests", "");
       return ApiClient.post<ApiResponse>(url, data);
     },
-    // ✅ Método clave para la página de peticiones
     getUserRequests: async (
       userId: string,
       type: string = "all",
