@@ -80,7 +80,6 @@ export class ApiClient {
     return data;
   }
 
-  // MÉTODOS GENÉRICOS (Sin la limpieza agresiva de slashes que fallaba en AWS)
   static async get<T>(url: string, params?: Record<string, any>): Promise<T> {
     const cleanParams = params
       ? Object.entries(params).reduce(
@@ -138,7 +137,7 @@ export class ApiClient {
   }
 
   // ==========================================
-  // SERVICIOS (USANDO getApiUrl)
+  // SERVICIOS (DEFINICIÓN DE ENDPOINTS)
   // ==========================================
 
   static auth = {
@@ -165,8 +164,6 @@ export class ApiClient {
     },
     updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
       try {
-        // En tu arquitectura, el update va al profile-service o users-service
-        // Según tu Nginx, usamos 'profile' para actualizaciones
         const url = getApiUrl("profile", userId);
         return await ApiClient.put<ApiResponse>(url, data);
       } catch (error: any) {
@@ -193,10 +190,59 @@ export class ApiClient {
     },
   };
 
+  // ✅ SERVICIO DE CHAT CORREGIDO (Lo que pedía el error de GitHub)
+  static chat = {
+    getUserConversations: async (
+      userId: string,
+    ): Promise<ApiResponse<{ conversations: any[] }>> => {
+      try {
+        const url = getApiUrl("conversations", `users/${userId}/conversations`);
+        return await ApiClient.get<ApiResponse>(url);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    getConversationMessages: async (
+      conversationId: string,
+    ): Promise<ApiResponse<{ messages: any[] }>> => {
+      try {
+        const url = getApiUrl("chat", `rooms/${conversationId}`);
+        return await ApiClient.get<ApiResponse>(url);
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    sendMessage: async (
+      conversationId: string,
+      data: any,
+    ): Promise<ApiResponse<{ messageId: string }>> => {
+      try {
+        const url = getApiUrl("messages", "");
+        return await ApiClient.post<ApiResponse>(url, {
+          ...data,
+          conversationId,
+        });
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+  };
+
   static notifications = {
     getNotifications: async () => {
       const url = getApiUrl("notifications", "");
       return ApiClient.get<ApiResponse>(url);
+    },
+  };
+
+  static ratings = {
+    getUserRating: async (userId: string) => {
+      const url = getApiUrl("ratings", "");
+      return ApiClient.get<ApiResponse>(url, { toUser: userId });
+    },
+    submitRating: async (data: any) => {
+      const url = getApiUrl("ratings", "");
+      return ApiClient.post<ApiResponse>(url, data);
     },
   };
 }
