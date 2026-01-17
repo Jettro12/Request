@@ -47,6 +47,20 @@ export interface Post {
   };
 }
 
+// ✅ AÑADIDA INTERFAZ REQUEST PARA EL BUILD
+export interface Request {
+  id: string;
+  type: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  fromUser: User;
+  toUser: User;
+  _count?: {
+    messages: number;
+  };
+}
+
 export interface UsersResponse {
   users: User[];
   total?: number;
@@ -184,7 +198,6 @@ export class ApiClient {
         return { success: false, error: error.message };
       }
     },
-    // ✅ CORRECCIÓN: Añadido searchUsers para el Dashboard
     searchUsers: async (params: any): Promise<ApiResponse<UsersResponse>> => {
       try {
         const url = getApiUrl("users", "search");
@@ -218,6 +231,18 @@ export class ApiClient {
     createRequest: async (data: any) => {
       const url = getApiUrl("requests", "");
       return ApiClient.post<ApiResponse>(url, data);
+    },
+    // ✅ Método clave para la página de peticiones
+    getUserRequests: async (
+      userId: string,
+      type: string = "all",
+    ): Promise<ApiResponse<{ requests: Request[] }>> => {
+      try {
+        const url = getApiUrl("requests", `user/${userId}`);
+        return await ApiClient.get<ApiResponse>(url, { type });
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
     getByChat: async (
       otherUserId: string,
