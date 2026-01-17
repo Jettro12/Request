@@ -107,19 +107,25 @@ export class ApiClient {
     }
 
     if (!response.ok) {
-      // FIX: Aseguramos que el error siempre sea un string para el frontend
       throw new ApiError(
-        data.message ||
-          data.error ||
-          `Error ${response.status}: ${response.statusText}`,
+        data.message || data.error || "Error en la solicitud",
         response.status,
         data,
       );
     }
 
-    // FIX: Si el backend no envía { success: true }, se lo inyectamos si el status es 2xx
+    // 🛠️ NORMALIZADOR MÁGICO:
+    // Si el microservicio envió un array directamente, lo envolvemos en el formato que espera el Dashboard
+    if (Array.isArray(data)) {
+      return {
+        success: true,
+        data: { posts: data, users: data, requests: data },
+      } as any;
+    }
+
+    // Si envió un objeto sin la propiedad 'success', se la ponemos
     if (data && typeof data === "object" && data.success === undefined) {
-      return { success: true, data } as any;
+      return { success: true, data: data } as any;
     }
 
     return data;
