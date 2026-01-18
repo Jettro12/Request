@@ -13,22 +13,22 @@ export class ApiError extends Error {
 }
 
 // ==========================================
-// INTERFACES
+// INTERFACES - ACTUALIZADAS CON CAMPOS OPCIONALES
 // ==========================================
 export interface User {
   id: string;
   name: string;
-  email?: string;
-  career?: string;
-  semester?: number;
-  rating?: number;
-  reviewCount?: number;
+  email?: string; // Hacer opcional
+  career?: string; // Hacer opcional
+  semester?: number; // Hacer opcional
+  rating?: number; // Hacer opcional
+  reviewCount?: number; // Hacer opcional
   bio?: string;
-  skills?: string[];
-  interests?: string[];
-  createdAt?: string;
-  updatedAt?: string;
-  avatar?: string;
+  skills?: string[]; // Hacer opcional
+  interests?: string[]; // Hacer opcional
+  createdAt?: string; // Hacer opcional
+  updatedAt?: string; // Agregar si existe
+  avatar?: string; // Agregar si existe
 }
 
 export interface Post {
@@ -43,7 +43,9 @@ export interface Post {
     id: string;
     name: string;
     career?: string;
+    semester?: number;
     rating?: number;
+    skills?: string[];
   };
 }
 
@@ -55,8 +57,34 @@ export interface Request {
   createdAt: string;
   fromUser: User;
   toUser: User;
-  _count?: {
+  _count: {
     messages: number;
+  };
+  messages: Array<{
+    id: string;
+    content: string;
+    createdAt: string;
+    sender: {
+      id: string;
+      name: string;
+    };
+  }>;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PostsResponse {
+  posts: Post[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
   };
 }
 
@@ -67,17 +95,11 @@ export interface UsersResponse {
   limit?: number;
 }
 
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
 // ==========================================
-// API CLIENT PRINCIPAL
+// API CLIENT PRINCIPAL - CON VALIDACIÓN MEJORADA
 // ==========================================
 export class ApiClient {
+  // 👇 GESTIÓN DE TOKEN Y HEADERS
   private static async fetchWithAuth(
     url: string,
     options: RequestInit = {},
@@ -90,6 +112,8 @@ export class ApiClient {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers as Record<string, string>),
     };
+
+    console.log("🚀 FETCH →", url);
 
     return fetch(url, {
       ...options,
@@ -114,34 +138,26 @@ export class ApiClient {
       );
     }
 
-    // 🛠️ NORMALIZADOR MÁGICO: Transforma arrays o respuestas directas en el formato ApiResponse
-    if (Array.isArray(data)) {
-      return {
-        success: true,
-        data: {
-          posts: data,
-          users: data,
-          requests: data,
-          messages: data,
-          conversations: data,
-        },
-      } as any;
-    }
-
-    if (data && typeof data === "object" && data.success === undefined) {
-      return { success: true, data: data } as any;
-    }
-
     return data;
   }
 
+  // --- MÉTODOS GENÉRICOS MEJORADOS ---
   static async get<T>(url: string, params?: Record<string, any>): Promise<T> {
+    // Filtrar parámetros undefined, null, "undefined", "null", o vacíos
     const cleanParams = params
       ? Object.entries(params).reduce(
           (acc, [key, value]) => {
             if (value === undefined || value === null) return acc;
-            const val = String(value).trim();
-            if (val === "" || val === "undefined" || val === "null") return acc;
+
+            const stringValue = String(value).trim();
+            if (
+              stringValue === "" ||
+              stringValue === "undefined" ||
+              stringValue === "null"
+            ) {
+              return acc;
+            }
+
             acc[key] = value;
             return acc;
           },
@@ -155,11 +171,15 @@ export class ApiClient {
         : "";
 
     const fullUrl = query ? `${url}?${query}` : url;
+
+    console.log("🌐 API GET:", fullUrl); // Para debug
+
     const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
     return this.handleResponse<T>(response);
   }
 
   static async post<T>(url: string, body?: any): Promise<T> {
+    console.log("🌐 API POST:", url, body); // Para debug
     const response = await this.fetchWithAuth(url, {
       method: "POST",
       body: JSON.stringify(body),
@@ -168,6 +188,7 @@ export class ApiClient {
   }
 
   static async put<T>(url: string, body?: any): Promise<T> {
+    console.log("🌐 API PUT:", url, body); // Para debug
     const response = await this.fetchWithAuth(url, {
       method: "PUT",
       body: JSON.stringify(body),
@@ -175,7 +196,14 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
+  static async delete<T>(url: string): Promise<T> {
+    console.log("🌐 API DELETE:", url); // Para debug
+    const response = await this.fetchWithAuth(url, { method: "DELETE" });
+    return this.handleResponse<T>(response);
+  }
+
   static async patch<T>(url: string, body?: any): Promise<T> {
+    console.log("🌐 API PATCH:", url, body); // Para debug
     const response = await this.fetchWithAuth(url, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -183,201 +211,390 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  static async delete<T>(url: string): Promise<T> {
-    const response = await this.fetchWithAuth(url, { method: "DELETE" });
-    return this.handleResponse<T>(response);
-  }
-
   // ==========================================
   // SERVICIOS
   // ==========================================
 
+  // AUTH SERVICE
   static auth = {
-    login: async (credentials: any) => {
-      const url = getApiUrl("auth", "login");
-      return ApiClient.post<ApiResponse>(url, credentials);
+    register: async (data: any): Promise<ApiResponse<{ userId: string }>> => {
+      try {
+        const url = getApiUrl("auth", "/register");
+        const response = await ApiClient.post<ApiResponse>(url, data);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
-    register: async (data: any) => {
-      const url = getApiUrl("auth", "register");
-      return ApiClient.post<ApiResponse>(url, data);
+
+    login: async (credentials: any): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("auth", "/login");
+        const response = await ApiClient.post<ApiResponse>(url, credentials);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
-    logout: async () => {
-      const url = getApiUrl("auth", "logout");
-      return ApiClient.post<ApiResponse>(url, {});
+
+    logout: async (): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("auth", "/logout");
+        const response = await ApiClient.post<ApiResponse>(url);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
   };
 
+  // USERS SERVICE
   static users = {
     getUserProfile: async (
       userId: string,
     ): Promise<ApiResponse<{ user: User }>> => {
       try {
-        const url = getApiUrl("users", userId);
-        return await ApiClient.get<ApiResponse>(url);
+        const url = getApiUrl("users", `/${userId}`);
+        const response = await ApiClient.get<ApiResponse>(url);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
-    searchUsers: async (params: any): Promise<ApiResponse<UsersResponse>> => {
+
+    createProfile: async (data: any): Promise<ApiResponse> => {
       try {
-        const url = getApiUrl("users", "search");
-        return await ApiClient.get<ApiResponse<UsersResponse>>(url, params);
+        const url = getApiUrl("users", "/profile");
+        const response = await ApiClient.post<ApiResponse>(url, data);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
+
     updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
       try {
-        // En tu users-service index: app.put("/:id/profile", updateProfile);
-        const url = getApiUrl("users", `${userId}/profile`);
-        return await ApiClient.put<ApiResponse>(url, data);
+        const url = getApiUrl("users", `/${userId}/profile`);
+        const response = await ApiClient.put<ApiResponse>(url, data);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    searchUsers: async (params: any): Promise<ApiResponse<UsersResponse>> => {
+      try {
+        const url = getApiUrl("users", "/search");
+        const response = await ApiClient.get<ApiResponse<UsersResponse>>(
+          url,
+          params,
+        );
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    getUsersByCareer: async (
+      career: string,
+      page = 1,
+      limit = 20,
+    ): Promise<ApiResponse<UsersResponse>> => {
+      try {
+        const url = getApiUrl("users", `/career/${career}`);
+        const response = await ApiClient.get<ApiResponse<UsersResponse>>(url, {
+          page,
+          limit,
+        });
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
   };
 
+  // POSTS SERVICE - MÉTODOS CORREGIDOS
   static posts = {
-    getPosts: async (params?: any): Promise<ApiResponse<{ posts: Post[] }>> => {
+    createPost: async (data: any): Promise<ApiResponse<{ postId: string }>> => {
       try {
-        const url = getApiUrl("posts", "");
-        return await ApiClient.get<ApiResponse>(url, params);
+        const url = getApiUrl("posts", "/");
+        const response = await ApiClient.post<ApiResponse>(url, data);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
-    createPost: async (data: any): Promise<ApiResponse> => {
+
+    getPosts: async (params?: {
+      careerSpace?: string;
+      type?: string;
+      page?: number;
+      limit?: number;
+      [key: string]: any;
+    }): Promise<ApiResponse<PostsResponse>> => {
       try {
-        const url = getApiUrl("posts", "");
-        return await ApiClient.post<ApiResponse>(url, data);
+        const url = getApiUrl("posts", "/");
+
+        // Parámetros por defecto
+        const defaultParams = {
+          page: 1,
+          limit: 20,
+          ...params,
+        };
+
+        // Filtrar valores específicos que no queremos enviar
+        const cleanParams: Record<string, any> = {
+          page: defaultParams.page,
+          limit: defaultParams.limit,
+        };
+
+        // Solo agregar careerSpace si tiene un valor válido
+        if (
+          defaultParams.careerSpace &&
+          defaultParams.careerSpace !== "undefined" &&
+          defaultParams.careerSpace !== "null" &&
+          defaultParams.careerSpace.trim() !== "" &&
+          defaultParams.careerSpace !== "Todos los espacios"
+        ) {
+          cleanParams.careerSpace = defaultParams.careerSpace;
+        }
+
+        // Solo agregar type si tiene un valor válido
+        if (
+          defaultParams.type &&
+          defaultParams.type !== "undefined" &&
+          defaultParams.type !== "null" &&
+          defaultParams.type.trim() !== "" &&
+          defaultParams.type !== "all"
+        ) {
+          cleanParams.type = defaultParams.type;
+        }
+
+        console.log("📡 Fetching posts with params:", cleanParams);
+
+        const response = await ApiClient.get<ApiResponse<PostsResponse>>(
+          url,
+          cleanParams,
+        );
+        return response;
+      } catch (error: any) {
+        console.error("❌ Error in getPosts:", error);
+        return {
+          success: false,
+          error: error.message || "Error fetching posts",
+        };
+      }
+    },
+
+    getPostById: async (
+      postId: string,
+    ): Promise<ApiResponse<{ post: Post }>> => {
+      try {
+        const url = getApiUrl("posts", `/${postId}`);
+        const response = await ApiClient.get<ApiResponse>(url);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    updatePost: async (postId: string, data: any): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("posts", `/${postId}`);
+        const response = await ApiClient.put<ApiResponse>(url, data);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    deletePost: async (postId: string): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("posts", `/${postId}`);
+        const response = await ApiClient.delete<ApiResponse>(url);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
   };
 
+  // REQUESTS SERVICE
   static requests = {
-    createRequest: async (data: any) => {
-      const url = getApiUrl("requests", "");
-      return ApiClient.post<ApiResponse>(url, data);
+    createRequest: async (
+      data: any,
+    ): Promise<ApiResponse<{ requestId: string }>> => {
+      try {
+        const url = getApiUrl("requests", "/");
+        const response = await ApiClient.post<ApiResponse>(url, data);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     },
+
     getUserRequests: async (
       userId: string,
-      type: string = "all",
+      type: "all" | "received" | "sent" = "all",
     ): Promise<ApiResponse<{ requests: Request[] }>> => {
       try {
-        const url = getApiUrl("requests", `user/${userId}`);
-        return await ApiClient.get<ApiResponse>(url, { type });
+        const url = getApiUrl("requests", `/user/${userId}`);
+        const response = await ApiClient.get<ApiResponse>(url, { type });
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
-    getByChat: async (
-      otherUserId: string,
-    ): Promise<ApiResponse<{ request: any }>> => {
-      try {
-        const url = getApiUrl("requests", `chat/${otherUserId}`);
-        return await ApiClient.get<ApiResponse>(url);
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+
     updateRequestStatus: async (
       requestId: string,
       status: string,
+      userId?: string,
     ): Promise<ApiResponse> => {
       try {
-        const url = getApiUrl("requests", `${requestId}/status`);
-        return await ApiClient.put<ApiResponse>(url, { status });
+        const url = getApiUrl("requests", `/${requestId}/status`);
+        // El backend espera userId en el body
+        const session: any = await getSession();
+        const userIdToUse = userId || session?.user?.id;
+        const response = await ApiClient.put<ApiResponse>(url, {
+          status,
+          userId: userIdToUse,
+        });
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
+
     completeRequest: async (
       requestId: string,
       data: any,
     ): Promise<ApiResponse> => {
       try {
-        const url = getApiUrl("requests", `${requestId}/complete`);
-        return await ApiClient.post<ApiResponse>(url, data);
+        const url = getApiUrl("requests", `/${requestId}/complete`);
+        const response = await ApiClient.post<ApiResponse>(url, data);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    // Obtener request por chat (entre dos usuarios)
+    getByChat: async (
+      otherUserId: string,
+    ): Promise<ApiResponse<{ request: any }>> => {
+      try {
+        const session: any = await getSession();
+        const currentUserId = session?.user?.id;
+        if (!currentUserId) {
+          return { success: false, error: "Usuario no autenticado" };
+        }
+        const url = getApiUrl("requests", `/chat/${otherUserId}`);
+        const response = await ApiClient.get<ApiResponse>(url, {
+          currentUserId,
+        });
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
   };
 
+  // CHAT & CONVERSATIONS SERVICE
   static chat = {
     getUserConversations: async (
       userId: string,
     ): Promise<ApiResponse<{ conversations: any[] }>> => {
       try {
-        // En tu conversations-service index: app.get("/user/:userId", ...);
-        const url = getApiUrl("conversations", `user/${userId}`);
-        return await ApiClient.get<ApiResponse>(url);
+        const url = getApiUrl(
+          "conversations",
+          `/users/${userId}/conversations`,
+        );
+        const response = await ApiClient.get<ApiResponse>(url);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
+
     getConversationMessages: async (
-      u1: string,
-      u2: string,
+      conversationId: string,
     ): Promise<ApiResponse<{ messages: any[] }>> => {
       try {
-        // En tu messages-service index: app.get("/history/:u1/:u2", ...);
-        const url = getApiUrl("messages", `history/${u1}/${u2}`);
-        return await ApiClient.get<ApiResponse>(url);
+        const url = getApiUrl("chat", `/rooms/${conversationId}`);
+        const response = await ApiClient.get<ApiResponse>(url);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
-    sendMessage: async (data: {
-      senderId: string;
-      receiverId: string;
-      content: string;
-    }): Promise<ApiResponse> => {
+
+    sendMessage: async (
+      conversationId: string,
+      data: any,
+    ): Promise<ApiResponse<{ messageId: string }>> => {
       try {
-        // En tu messages-service index: app.post("/", ...);
-        const url = getApiUrl("messages", "");
-        return await ApiClient.post<ApiResponse>(url, data);
+        const url = getApiUrl("messages", "/");
+        const response = await ApiClient.post<ApiResponse>(url, {
+          ...data,
+          conversationId,
+        });
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
   };
 
-  static notifications = {
-    getNotifications: async (): Promise<ApiResponse> => {
-      try {
-        // En tu notification-service index: app.get("/list", ...);
-        const url = getApiUrl("notifications", "list");
-        return await ApiClient.get<ApiResponse>(url);
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-    markAllRead: async (): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("notifications", "read-all");
-        return await ApiClient.patch<ApiResponse>(url, {});
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-  };
-
+  // RATINGS SERVICE
   static ratings = {
+    getUserRating: async (
+      userId: string,
+    ): Promise<ApiResponse<{ rating: number; reviewCount: number }>> => {
+      try {
+        const url = getApiUrl("ratings", "/");
+        const response = await ApiClient.get<ApiResponse>(url, {
+          toUser: userId,
+        });
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
     submitRating: async (data: any): Promise<ApiResponse> => {
       try {
-        const url = getApiUrl("ratings", "");
-        return await ApiClient.post<ApiResponse>(url, data);
+        const url = getApiUrl("ratings", "/");
+        const response = await ApiClient.post<ApiResponse>(url, data);
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
     },
-    getUserRatings: async (userId: string): Promise<ApiResponse> => {
+  };
+
+  // NOTIFICATIONS SERVICE
+  static notifications = {
+    getUserNotifications: async (
+      userId: string,
+    ): Promise<ApiResponse<{ notifications: any[] }>> => {
       try {
-        const url = getApiUrl("ratings", "");
-        return await ApiClient.get<ApiResponse>(url, { toUser: userId });
+        const url = getApiUrl("notifications", "/");
+        const response = await ApiClient.get<ApiResponse>(url);
+        return response;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+
+    markAsRead: async (notificationId: string): Promise<ApiResponse> => {
+      try {
+        const url = getApiUrl("notifications", `/${notificationId}`);
+        // Backend espera PATCH, no PUT
+        const response = await ApiClient.patch<ApiResponse>(url, {
+          read: true,
+        });
+        return response;
       } catch (error: any) {
         return { success: false, error: error.message };
       }
