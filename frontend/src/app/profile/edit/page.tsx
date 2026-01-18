@@ -74,7 +74,9 @@ export default function EditProfile() {
       if (!session?.user?.id) return;
 
       try {
-        const result = await ApiClient.users.getUserProfile(session.user.id);
+        const result = (await ApiClient.users.getUserProfile(
+          session.user.id,
+        )) as any;
 
         // CORRECCIÓN AQUÍ: Accedemos a result.data.user
         if (result.success && result.data && result.data.user) {
@@ -117,14 +119,14 @@ export default function EditProfile() {
         throw new Error("Usuario no autenticado");
       }
 
-      const result = await ApiClient.users.updateProfile(session.user.id, {
+      const result = (await ApiClient.users.updateProfile(session.user.id, {
         name: formData.name,
         career: formData.career,
         semester: formData.semester,
         bio: formData.bio,
         skills: formData.skills,
         interests: formData.interests,
-      });
+      })) as any;
 
       if (!result.success) {
         throw new Error(result.error || "Error al actualizar el perfil");
