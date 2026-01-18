@@ -42,7 +42,6 @@ export interface Post {
   };
 }
 
-// ✅ RENOMBRADO PARA EVITAR ERROR EN DOCKER BUILD
 export interface UserRequest {
   id: string;
   type: string;
@@ -158,7 +157,6 @@ export class ApiClient {
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
-    // ✅ CORREGIDO SEGÚN TU INDEX: /:id/profile
     updateProfile: (id: string, data: any) =>
       ApiClient.put(getApiUrl("users", `${id}/profile`), data),
   };
@@ -192,12 +190,17 @@ export class ApiClient {
   static chat = {
     getUserConversations: (userId: string) =>
       ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
+
+    // ✅ Corregido sintácticamente para evitar el error de build
     getConversationMessages: (u1: string, u2: string) => {
       if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined") {
-        return Promise.resolve({ success: true, data: [] });
+        return Promise.resolve({ success: true, data: [] } as any);
       }
-      return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));,
+      return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));
+    },
+
     sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
   };
 }
+
 export default ApiClient;
