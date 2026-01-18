@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ApiClient, type Request } from "@/lib/api/client";
+import { ApiClient, type UserRequest } from "@/lib/api/client";
 
 const requestStatusStyles = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -15,7 +15,7 @@ const requestStatusStyles = {
 
 export default function RequestsPage() {
   const { data: session, status } = useSession();
-  const [requests, setRequests] = useState<Request[]>([]);
+  const [requests, setRequests] = useState<UserRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "received" | "sent">(
