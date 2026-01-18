@@ -42,9 +42,7 @@ export interface Post {
   };
 }
 
-/** * Cambiamos el nombre de la interfaz a UserRequest para evitar conflictos
- * con la interfaz 'Request' nativa del navegador durante el build de Next.js
- */
+// ✅ RENOMBRADO PARA EVITAR ERROR EN DOCKER BUILD
 export interface UserRequest {
   id: string;
   type: string;
@@ -154,15 +152,15 @@ export class ApiClient {
   static auth = {
     login: (c: any) => ApiClient.post(getApiUrl("auth", "login"), c),
     register: (d: any) => ApiClient.post(getApiUrl("auth", "register"), d),
-    // Reincorporado: Necesario para auth.service.ts
     logout: () => ApiClient.post(getApiUrl("auth", "logout"), {}),
   };
 
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
+    // ✅ CORREGIDO SEGÚN TU INDEX: /:id/profile
     updateProfile: (id: string, data: any) =>
-      ApiClient.put(getApiUrl("users", `profile/${id}`), data),
+      ApiClient.put(getApiUrl("users", `${id}/profile`), data),
   };
 
   static posts = {
