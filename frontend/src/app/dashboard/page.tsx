@@ -27,10 +27,13 @@ export default function Dashboard() {
   const [people, setPeople] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Helper para detectar si un string es un ID de Prisma (cuid) o un nombre real
-  const formatName = (name: string | null | undefined) => {
+  // Helper mejorado para limpiar IDs y mostrar nombres reales
+  const formatName = (name: string | null | undefined, authorId?: string) => {
+    // Si el post es del usuario actual, usamos el nombre de la sesión para asegurar frescura
+    if (authorId === session?.user?.id && session?.user?.name)
+      return session.user.name;
+
     if (!name) return "Usuario de Request";
-    // Si el nombre empieza por 'cmk' y es largo, probablemente es un ID filtrado por error del microservicio
     if (name.startsWith("cmk") && name.length > 15)
       return "Compañero Universitario";
     return name;
@@ -58,7 +61,6 @@ export default function Dashboard() {
             (Array.isArray(res) ? res : []);
           setPosts(data);
         } else {
-          // Microservicio de usuarios usa 'career'
           const params =
             selectedCareer !== "Todos los espacios"
               ? { career: selectedCareer }
@@ -92,7 +94,6 @@ export default function Dashboard() {
       <Header />
       <main className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-4 gap-8">
-          {/* SIDEBAR */}
           <aside className="space-y-6">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
               <h2 className="font-black mb-4 text-xs text-gray-400 uppercase tracking-[0.2em]">
@@ -157,7 +158,6 @@ export default function Dashboard() {
             </Link>
           </aside>
 
-          {/* CONTENIDO PRINCIPAL */}
           <section className="lg:col-span-3 space-y-6">
             {loading ? (
               <div className="animate-pulse space-y-4">
@@ -192,13 +192,13 @@ export default function Dashboard() {
                         className="flex items-center space-x-3 group/author"
                       >
                         <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-100 group-hover/author:scale-110 transition-transform">
-                          {formatName(post.author?.name)
+                          {formatName(post.author?.name, post.author?.id)
                             .charAt(0)
                             .toUpperCase()}
                         </div>
                         <div>
                           <span className="text-sm font-black text-gray-900 group-hover/author:text-blue-600 block transition-colors">
-                            {formatName(post.author?.name)}
+                            {formatName(post.author?.name, post.author?.id)}
                           </span>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
                             {post.author?.career || "Estudiante"}
@@ -214,7 +214,7 @@ export default function Dashboard() {
               ) : (
                 <div className="bg-white rounded-[2rem] p-20 text-center border-2 border-dashed border-gray-100">
                   <p className="text-gray-400 font-black uppercase tracking-widest">
-                    📭 No hay publicaciones en este espacio.
+                    📭 No hay publicaciones aquí.
                   </p>
                 </div>
               )
@@ -226,17 +226,17 @@ export default function Dashboard() {
                     className="bg-white p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-xl hover:border-blue-200 transition-all"
                   >
                     <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-blue-100">
-                      {formatName(u.name).charAt(0).toUpperCase()}
+                      {formatName(u.name, u.id).charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1">
                       <Link
                         href={`/profile/${u.id}`}
                         className="font-black text-gray-900 hover:text-blue-600 text-lg block leading-tight transition-colors tracking-tighter"
                       >
-                        {formatName(u.name)}
+                        {formatName(u.name, u.id)}
                       </Link>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.1em] mt-1">
-                        {u.career || "Carrera no definida"}
+                        {u.career || "Carrera no especificada"}
                       </p>
                     </div>
                   </div>

@@ -16,7 +16,6 @@ const careers = [
   "Arquitectura",
   "Contabilidad",
 ];
-
 const skillsOptions = [
   "React",
   "JavaScript",
@@ -35,7 +34,6 @@ const skillsOptions = [
   "Estadística",
   "Comunicación",
 ];
-
 const interestsOptions = [
   "Tecnología",
   "Arte Digital",
@@ -52,7 +50,7 @@ const interestsOptions = [
 ];
 
 export default function EditProfile() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -77,36 +75,29 @@ export default function EditProfile() {
         const result = (await ApiClient.users.getUserProfile(
           session.user.id,
         )) as any;
+        const user =
+          result.data?.user || result.user || (result.id ? result : null);
 
-        // CORRECCIÓN AQUÍ: Accedemos a result.data.user
-        if (result.success && result.data && result.data.user) {
-          const user = result.data.user;
+        if (user) {
           setFormData({
             name: user.name || "",
             email: user.email || "",
             career: user.career || "",
             semester: user.semester || 1,
             bio: user.bio || "",
-            skills: user.skills || [],
-            interests: user.interests || [],
+            skills: Array.isArray(user.skills) ? user.skills : [],
+            interests: Array.isArray(user.interests) ? user.interests : [],
           });
         }
       } catch (err) {
-        console.error("Error cargando datos del usuario:", err);
-        // Usar datos de sesión como fallback
-        // Nota: session.user puede no tener career/semester si no están tipados en next-auth
-        setFormData((prev) => ({
-          ...prev,
-          name: session.user?.name || "",
-          email: session.user?.email || "",
-        }));
+        console.error("Error cargando perfil:", err);
       } finally {
         setIsLoadingData(false);
       }
     };
 
     loadUserData();
-  }, [session]);
+  }, [session?.user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,302 +106,153 @@ export default function EditProfile() {
     setSuccess("");
 
     try {
-      if (!session?.user?.id) {
-        throw new Error("Usuario no autenticado");
-      }
+      if (!session?.user?.id) throw new Error("Sesión no válida");
 
-      const result = (await ApiClient.users.updateProfile(session.user.id, {
-        name: formData.name,
-        career: formData.career,
-        semester: formData.semester,
-        bio: formData.bio,
-        skills: formData.skills,
-        interests: formData.interests,
-      })) as any;
+      const result = (await ApiClient.users.updateProfile(
+        session.user.id,
+        formData,
+      )) as any;
 
-      if (!result.success) {
-        throw new Error(result.error || "Error al actualizar el perfil");
-      }
+      if (!result.success) throw new Error(result.error || "Fallo al guardar");
 
-      setSuccess("Perfil actualizado exitosamente");
+      setSuccess("¡Perfil guardado! Redirigiendo...");
 
+      // 🚀 SOLUCIÓN AL GUARDADO: Forzamos la actualización de la sesión
+      // y usamos window.location para limpiar caches de microservicios
+      await update();
       setTimeout(() => {
-        router.push("/profile");
-      }, 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+        window.location.href = "/profile";
+      }, 1500);
+    } catch (err: any) {
+      setError(err.message || "Error al actualizar");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSkillToggle = (skill: string) => {
+  const handleToggle = (list: "skills" | "interests", value: string) => {
     setFormData((prev) => ({
       ...prev,
-      skills: prev.skills.includes(skill)
-        ? prev.skills.filter((s) => s !== skill)
-        : [...prev.skills, skill],
+      [list]: prev[list].includes(value)
+        ? prev[list].filter((item) => item !== value)
+        : [...prev[list], value],
     }));
   };
 
-  const handleInterestToggle = (interest: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      interests: prev.interests.includes(interest)
-        ? prev.interests.filter((i) => i !== interest)
-        : [...prev.interests, interest],
-    }));
-  };
-
-  if (!session) {
+  if (isLoadingData)
     return (
       <>
         <Header />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              No has iniciado sesión
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Por favor inicia sesión para editar tu perfil
-            </p>
-          </div>
+        <div className="p-20 text-center font-black animate-pulse">
+          CARGANDO PERFIL...
         </div>
       </>
     );
-  }
-
-  if (isLoadingData) {
-    return (
-      <>
-        <Header />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-4">Cargando tu perfil...</p>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
       <Header />
       <main className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="bg-white rounded-xl shadow-sm p-8">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">
-                Editar Perfil
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Actualiza tu información personal y profesional
-              </p>
-            </div>
+          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+            <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase mb-2">
+              Editar Perfil
+            </h1>
+            <p className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-8">
+              Base de Datos Centralizada
+            </p>
 
             {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+              <div className="bg-red-50 text-red-600 p-4 rounded-2xl mb-6 font-bold border border-red-100">
                 {error}
               </div>
             )}
-
             {success && (
-              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+              <div className="bg-green-50 text-green-600 p-4 rounded-2xl mb-6 font-bold border border-green-100">
                 {success}
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Información Básica */}
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Nombre Completo *
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">
+                    Nombre Completo
                   </label>
                   <input
                     type="text"
-                    id="name"
                     value={formData.name}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, name: e.target.value }))
+                      setFormData({ ...formData, name: e.target.value })
                     }
+                    className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-gray-900 font-bold focus:ring-2 focus:ring-blue-600 outline-none"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
-                    placeholder="Tu nombre completo"
                   />
                 </div>
-
                 <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Correo Electrónico *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        email: e.target.value,
-                      }))
-                    }
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
-                    placeholder="tu.correo@universidad.edu"
-                  />
-                </div>
-              </div>
-
-              {/* Carrera y Semestre */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label
-                    htmlFor="career"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Carrera *
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">
+                    Carrera / Facultad
                   </label>
                   <select
-                    id="career"
                     value={formData.career}
                     onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        career: e.target.value,
-                      }))
+                      setFormData({ ...formData, career: e.target.value })
                     }
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                    className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-gray-900 font-bold focus:ring-2 focus:ring-blue-600 outline-none"
                   >
-                    <option value="">Selecciona tu carrera</option>
-                    {careers.map((career) => (
-                      <option key={career} value={career}>
-                        {career}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="semester"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Semestre *
-                  </label>
-                  <select
-                    id="semester"
-                    value={formData.semester}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        semester: parseInt(e.target.value),
-                      }))
-                    }
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((sem) => (
-                      <option key={sem} value={sem}>
-                        {sem}° Semestre
+                    <option value="">Seleccionar...</option>
+                    {careers.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Biografía */}
               <div>
-                <label
-                  htmlFor="bio"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Biografía
+                <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">
+                  Biografía Profesional
                 </label>
                 <textarea
-                  id="bio"
                   value={formData.bio}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, bio: e.target.value }))
+                    setFormData({ ...formData, bio: e.target.value })
                   }
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
-                  placeholder="Cuéntanos sobre ti, tus intereses, proyectos, metas..."
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-gray-900 font-bold focus:ring-2 focus:ring-blue-600 outline-none h-32"
                 />
               </div>
 
-              {/* Habilidades */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-[10px] font-black uppercase text-gray-400 mb-4">
                   Habilidades Técnicas
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {skillsOptions.map((skill) => (
+                  {skillsOptions.map((s) => (
                     <button
-                      key={skill}
+                      key={s}
                       type="button"
-                      onClick={() => handleSkillToggle(skill)}
-                      className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
-                        formData.skills.includes(skill)
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      }`}
+                      onClick={() => handleToggle("skills", s)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.skills.includes(s) ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400"}`}
                     >
-                      {skill}
+                      {s}
                     </button>
                   ))}
                 </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  Seleccionadas: {formData.skills.length} habilidades
-                </p>
               </div>
 
-              {/* Intereses */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Intereses y Pasiones
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {interestsOptions.map((interest) => (
-                    <button
-                      key={interest}
-                      type="button"
-                      onClick={() => handleInterestToggle(interest)}
-                      className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
-                        formData.interests.includes(interest)
-                          ? "bg-purple-600 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      }`}
-                    >
-                      {interest}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  Seleccionados: {formData.interests.length} intereses
-                </p>
-              </div>
-
-              {/* Botones */}
-              <div className="flex space-x-4 pt-6 border-t border-gray-200">
+              <div className="flex space-x-3 pt-6">
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 disabled:opacity-50"
                 >
-                  {isLoading ? "Guardando..." : "Guardar Cambios"}
+                  {isLoading ? "Sincronizando..." : "Guardar Cambios"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push("/profile")}
-                  className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 font-medium"
+                  onClick={() => router.back()}
+                  className="px-8 bg-gray-50 text-gray-400 font-black uppercase text-xs rounded-2xl border border-gray-100"
                 >
                   Cancelar
                 </button>

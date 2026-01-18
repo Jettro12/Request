@@ -156,8 +156,15 @@ export class ApiClient {
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
-    updateProfile: (id: string, d: any) =>
-      ApiClient.put(getApiUrl("users", `${id}/profile`), d),
+    updateProfile: (id: string, data: any) =>
+      ApiClient.put(getApiUrl("users", `profile/${id}`), {
+        name: data.name,
+        career: data.career, // 👈 Verifica que esta línea exista
+        semester: data.semester,
+        bio: data.bio,
+        skills: data.skills,
+        interests: data.interests,
+      }),
   };
 
   static posts = {
