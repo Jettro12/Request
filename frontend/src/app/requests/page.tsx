@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ApiClient, Request } from "@/lib/api/client";
+import { ApiClient, type Request } from "@/lib/api/client";
 
 const requestStatusStyles = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -27,19 +27,22 @@ export default function RequestsPage() {
     try {
       setIsLoading(true);
       setError("");
-      const result = await ApiClient.requests.getUserRequests(
+      const result = (await ApiClient.requests.getUserRequests(
         session.user.id,
-        activeTab,
-      );
+        activeTab as any,
+      )) as any;
 
-      if (result.success && result.data?.requests) {
-        setRequests(result.data.requests);
-        setError(""); // Aseguramos limpieza en éxito
+      const data =
+        result.data?.requests ||
+        result.requests ||
+        (Array.isArray(result) ? result : []);
+
+      if (data && data.length >= 0) {
+        setRequests(data);
+        if (data.length === 0)
+          setError("Aún no tienes solicitudes en esta categoría.");
       } else {
-        setRequests([]);
-        setError(
-          result.error || "Aún no tienes solicitudes en esta categoría.",
-        );
+        setError(result.error || "Error al cargar solicitudes.");
       }
     } catch (err) {
       setError("Fallo de conexión al cargar solicitudes.");
@@ -56,7 +59,9 @@ export default function RequestsPage() {
     return (
       <>
         <Header />
-        <div className="p-20 text-center">Iniciando...</div>
+        <div className="p-20 text-center uppercase font-black text-blue-600">
+          Iniciando...
+        </div>
       </>
     );
   if (status === "unauthenticated")
@@ -74,25 +79,19 @@ export default function RequestsPage() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+              <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">
                 Mis Solicitudes
               </h1>
-              <p className="text-gray-500">
-                Gestiona tus colaboraciones y proyectos
+              <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">
+                Gestiona tus colaboraciones
               </p>
             </div>
-
-            {/* TABS SELECTOR */}
-            <div className="bg-white p-1 rounded-xl shadow-sm border flex space-x-1">
+            <div className="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex space-x-1">
               {(["all", "received", "sent"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-                    activeTab === tab
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-100"
-                      : "text-gray-500 hover:bg-gray-50"
-                  }`}
+                  className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${activeTab === tab ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   {tab === "all"
                     ? "Todas"
@@ -105,74 +104,69 @@ export default function RequestsPage() {
           </div>
 
           {isLoading ? (
-            <div className="py-20 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="py-20 text-center font-black text-blue-600 animate-pulse uppercase">
+              Cargando solicitudes...
             </div>
           ) : requests.length === 0 ? (
-            <div className="bg-white rounded-3xl p-16 text-center border-2 border-dashed border-gray-100">
+            <div className="bg-white rounded-[2rem] p-16 text-center border-2 border-dashed border-gray-100">
               <span className="text-5xl mb-4 block">📭</span>
-              <h3 className="text-xl font-bold text-gray-900">
+              <h3 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
                 {error || "Todo despejado"}
               </h3>
-              <p className="text-gray-500 mt-2">
-                Aquí aparecerán tus solicitudes de colaboración.
-              </p>
             </div>
           ) : (
             <div className="grid gap-4">
-              {requests.map((request) => (
-                <div
-                  key={request.id}
-                  className="bg-white rounded-2xl shadow-sm border p-6 hover:border-blue-200 transition-all flex flex-col md:flex-row justify-between gap-6"
-                >
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-600">
-                      {(activeTab === "sent"
-                        ? request.toUser.name
-                        : request.fromUser.name
-                      ).charAt(0)}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-3 mb-1">
-                        <span className="font-bold text-gray-900">
-                          {activeTab === "sent"
-                            ? `Para: ${request.toUser.name}`
-                            : `De: ${request.fromUser.name}`}
-                        </span>
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${requestStatusStyles[request.status as keyof typeof requestStatusStyles]}`}
-                        >
-                          {request.status}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 text-sm leading-relaxed max-w-xl">
-                        {request.message}
-                      </p>
-                      <div className="mt-4 flex items-center text-xs text-gray-400 space-x-4 font-medium">
-                        <span>
-                          📅 {new Date(request.createdAt).toLocaleDateString()}
-                        </span>
-                        <span>🏷️ {request.type}</span>
-                      </div>
-                    </div>
-                  </div>
+              {requests.map((request) => {
+                const isSent =
+                  activeTab === "sent" ||
+                  (session?.user?.id === request.fromUser?.id &&
+                    activeTab === "all");
+                const targetUser = isSent ? request.toUser : request.fromUser;
 
-                  <div className="flex items-center space-x-2">
-                    <Link
-                      href={`/chat/${activeTab === "sent" ? request.toUser.id : request.fromUser.id}`}
-                      className="flex-1 md:flex-none text-center bg-gray-50 hover:bg-gray-100 text-gray-700 px-6 py-2.5 rounded-xl text-sm font-bold border transition"
-                    >
-                      💬 Chat
-                    </Link>
-                    {activeTab === "received" &&
-                      request.status === "PENDING" && (
-                        <button className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition">
-                          Aceptar
-                        </button>
-                      )}
+                return (
+                  <div
+                    key={request.id}
+                    className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 hover:border-blue-200 transition-all flex flex-col md:flex-row justify-between items-center gap-6"
+                  >
+                    <div className="flex items-start space-x-4 w-full">
+                      <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center font-black text-blue-600 text-xl shadow-inner">
+                        {targetUser?.name?.charAt(0) || "?"}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className="font-black text-gray-900 uppercase tracking-tight">
+                            {isSent ? "PARA: " : "DE: "}
+                            {targetUser?.name || "Desconocido"}
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${requestStatusStyles[request.status as keyof typeof requestStatusStyles] || "bg-gray-100 text-gray-600"}`}
+                          >
+                            {request.status}
+                          </span>
+                        </div>
+                        <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                          {request.message}
+                        </p>
+                        <div className="mt-4 flex items-center text-[10px] text-gray-300 font-black uppercase tracking-widest space-x-4">
+                          <span>
+                            📅{" "}
+                            {new Date(request.createdAt).toLocaleDateString()}
+                          </span>
+                          <span>🏷️ {request.type}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 w-full md:w-auto">
+                      <Link
+                        href={`/chat/${targetUser?.id}`}
+                        className="flex-1 md:flex-none text-center bg-gray-50 hover:bg-blue-600 hover:text-white text-gray-400 px-8 py-3 rounded-2xl text-xs font-black uppercase border border-gray-100 transition-all"
+                      >
+                        💬 Chat
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -7,15 +7,13 @@ import { useState, useEffect, useRef } from "react";
 import CompleteRequestModal from "@/components/CompleteRequestModal";
 import { ApiClient, User } from "../../../lib/api/client";
 
-// Interfaz local para mensajes
+// Interfaz local blindada
 interface Message {
   id: string;
   content: string;
   senderId: string;
   receiverId: string;
   createdAt: string;
-  read: boolean;
-  type: string;
 }
 
 interface RequestInfo {
@@ -46,36 +44,37 @@ export default function ChatConversationPage() {
       try {
         setIsLoading(true);
 
-        // 1. Cargar Mensajes (Corregido: Requiere 2 IDs)
-        const messagesResult = await ApiClient.chat.getConversationMessages(
+        // 1. Cargar Mensajes
+        const messagesResult = (await ApiClient.chat.getConversationMessages(
           session.user.id,
           otherUserId,
-        );
+        )) as any;
 
-        // Blindaje para el build
         const msgData =
-          (messagesResult as any).data?.messages ||
-          (messagesResult as any).messages ||
+          messagesResult.data?.messages ||
+          messagesResult.messages ||
           (Array.isArray(messagesResult) ? messagesResult : []);
-
         setMessages(msgData);
 
-        // 2. Cargar Perfil del otro usuario
-        const userResult = await ApiClient.users.getUserProfile(otherUserId);
+        // 2. Cargar Perfil
+        const userResult = (await ApiClient.users.getUserProfile(
+          otherUserId,
+        )) as any;
         const userData =
-          (userResult as any).data?.user ||
-          (userResult as any).user ||
-          userResult;
+          userResult.data?.user ||
+          userResult.user ||
+          (userResult.id ? userResult : null);
         if (userData) setOtherUser(userData);
 
-        // 3. Obtener solicitud (request) vinculada
-        const requestResult = await ApiClient.requests.getByChat(otherUserId);
+        // 3. Obtener solicitud
+        const requestResult = (await ApiClient.requests.getByChat(
+          otherUserId,
+        )) as any;
         const reqData =
-          (requestResult as any).data?.request ||
-          (requestResult as any).request;
+          requestResult.data?.request || requestResult.request || null;
         if (reqData) setRequestInfo(reqData);
       } catch (err: any) {
-        console.error("Error cargando datos del chat:", err);
+        console.error("Error cargando chat:", err);
         setError("Error al cargar la conversación");
       } finally {
         setIsLoading(false);
@@ -94,24 +93,21 @@ export default function ChatConversationPage() {
 
     try {
       setIsSending(true);
-      // Corregido: Enviamos el objeto con senderId y receiverId
-      const result = await ApiClient.chat.sendMessage({
+      const result = (await ApiClient.chat.sendMessage({
         senderId: session.user.id,
         receiverId: otherUserId,
         content: newMessage,
-      });
+      })) as any;
 
       if (result.success) {
-        // Recarga optimizada
-        const messagesResult = await ApiClient.chat.getConversationMessages(
+        const messagesResult = (await ApiClient.chat.getConversationMessages(
           session.user.id,
           otherUserId,
-        );
+        )) as any;
         const msgData =
-          (messagesResult as any).data?.messages ||
-          (messagesResult as any).messages ||
+          messagesResult.data?.messages ||
+          messagesResult.messages ||
           (Array.isArray(messagesResult) ? messagesResult : []);
-
         setMessages(msgData);
         setNewMessage("");
       }
@@ -149,8 +145,8 @@ export default function ChatConversationPage() {
         );
       }
 
-      if (result.success) {
-        window.location.reload(); // Recarga simple para sincronizar estados
+      if (result && result.success) {
+        window.location.reload();
       }
     } catch (err: any) {
       setError("Error al procesar el acuerdo");
@@ -180,7 +176,6 @@ export default function ChatConversationPage() {
       <Header />
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-4xl mx-auto h-[calc(100vh-64px)] flex flex-col">
-          {/* Header */}
           <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
@@ -193,7 +188,6 @@ export default function ChatConversationPage() {
                 <p className="text-xs text-gray-500">{otherUser?.career}</p>
               </div>
             </div>
-
             {requestInfo?.status === "ACCEPTED" && (
               <button
                 onClick={() => setShowAgreementOptions(true)}
@@ -204,7 +198,6 @@ export default function ChatConversationPage() {
             )}
           </div>
 
-          {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg) => (
               <div
@@ -212,11 +205,7 @@ export default function ChatConversationPage() {
                 className={`flex ${msg.senderId === session.user?.id ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
-                    msg.senderId === session.user?.id
-                      ? "bg-blue-600 text-white rounded-br-none"
-                      : "bg-white border text-gray-800 rounded-bl-none"
-                  }`}
+                  className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${msg.senderId === session.user?.id ? "bg-blue-600 text-white rounded-br-none" : "bg-white border text-gray-800 rounded-bl-none"}`}
                 >
                   <p className="text-sm">{msg.content}</p>
                   <span className="text-[10px] opacity-70 block mt-1 text-right">
@@ -231,7 +220,6 @@ export default function ChatConversationPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
           <div className="p-4 bg-white border-t">
             <div className="flex space-x-2">
               <input
@@ -252,7 +240,6 @@ export default function ChatConversationPage() {
           </div>
         </div>
       </main>
-
       {showCompleteModal && requestInfo && otherUser && (
         <CompleteRequestModal
           requestId={requestInfo.id}

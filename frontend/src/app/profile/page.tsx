@@ -22,8 +22,9 @@ export default function ProfilePage() {
         setError("");
 
         // Consultamos directamente al microservicio de usuarios
-        const result = await ApiClient.users.getUserProfile(session.user.id);
-
+        const result = (await ApiClient.users.getUserProfile(
+          session.user.id,
+        )) as any;
         // Extracción estricta de la data según la respuesta del microservicio
         const userData =
           result.data?.user ||

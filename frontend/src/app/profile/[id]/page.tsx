@@ -23,8 +23,14 @@ export default function PublicProfilePage() {
       try {
         setIsLoading(true);
         setError("");
-        const result = await ApiClient.users.getUserProfile(userId as string);
+        const result = (await ApiClient.users.getUserProfile(
+          userId as string,
+        )) as any;
 
+        const userData =
+          (result as any).data?.user ||
+          (result as any).user ||
+          (result.id ? result : null);
         if (result.success && result.data?.user) {
           setUser(result.data.user);
           setError("");
