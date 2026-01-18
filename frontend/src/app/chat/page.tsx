@@ -31,22 +31,25 @@ export default function ChatPage() {
   useEffect(() => {
     const loadConversations = async () => {
       if (!session?.user?.id) return;
-
       try {
         setIsLoading(true);
-        // Ahora el método getUserConversations ya existe en el cliente
-        const result = await ApiClient.chat.getUserConversations(
+        // ✅ CORRECCIÓN: Añadimos 'as any' para que TS permita leer .success y .data
+        const result = (await ApiClient.chat.getUserConversations(
           session.user.id,
-        );
+        )) as any;
 
-        if (result.success && result.data) {
-          setConversations(result.data.conversations || []);
+        if (result.success) {
+          // Extraemos la data de forma segura buscando en ambos posibles formatos
+          const data =
+            result.data?.conversations ||
+            result.conversations ||
+            (Array.isArray(result) ? result : []);
+          setConversations(data);
         } else {
           setError(result.error || "Error al cargar conversaciones");
         }
-      } catch (err: any) {
-        console.error("Error cargando conversaciones:", err);
-        setError(err.message || "Error al cargar conversaciones");
+      } catch (err) {
+        setError("Error de conexión");
       } finally {
         setIsLoading(false);
       }
