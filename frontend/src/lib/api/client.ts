@@ -166,10 +166,17 @@ export class ApiClient {
   };
 
   static requests = {
-    createRequest: (data: any) =>
-      ApiClient.post(getApiUrl("requests", ""), data),
+    // ✅ CORREGIDO: Mapeo explícito de campos para evitar Error 500
+    createRequest: (data: any) => {
+      const payload = {
+        fromUserId: data.fromUserId || data.senderId,
+        toUserId: data.toUserId || data.receiverId,
+        type: data.type || "COLLABORATION",
+        message: data.message,
+      };
+      return ApiClient.post(getApiUrl("requests", ""), payload);
+    },
 
-    // ✅ AGREGADO: Obtener solicitudes del usuario
     getUserRequests: (userId: string, type = "all") =>
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
 
@@ -179,7 +186,6 @@ export class ApiClient {
     updateRequestStatus: (id: string, status: string) =>
       ApiClient.put(getApiUrl("requests", `${id}/status`), { status }),
 
-    // ✅ AGREGADO: Completar solicitud (usado en el chat para acuerdos)
     completeRequest: (id: string, data: any) =>
       ApiClient.post(getApiUrl("requests", `${id}/complete`), data),
   };

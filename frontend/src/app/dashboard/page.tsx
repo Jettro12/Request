@@ -34,14 +34,18 @@ export default function Dashboard() {
   // Cargar Contenido Principal
   useEffect(() => {
     const loadContent = async () => {
+      // 💡 Usamos solo 'authenticated' para disparar la carga
       if (status !== "authenticated") return;
+
       setLoading(true);
       try {
         if (view === "posts") {
+          // El microservicio de posts espera 'careerSpace'
           const params =
             selectedCareer !== "Todos los espacios"
               ? { careerSpace: selectedCareer }
               : {};
+
           const res = await ApiClient.posts.getPosts(params);
           const data =
             (res as any).data?.posts ||
@@ -49,10 +53,12 @@ export default function Dashboard() {
             (Array.isArray(res) ? res : []);
           setPosts(data);
         } else {
+          // ✅ CORRECCIÓN: El microservicio de usuarios espera 'career'
           const params =
             selectedCareer !== "Todos los espacios"
               ? { career: selectedCareer }
               : {};
+
           const res = await ApiClient.users.searchUsers(params);
           const data =
             (res as any).data?.users ||
@@ -66,9 +72,10 @@ export default function Dashboard() {
         setLoading(false);
       }
     };
-    loadContent();
-  }, [view, selectedCareer, status]);
 
+    loadContent();
+    // 💡 Quitamos 'status' y ponemos solo la condición de autenticación para evitar bucles
+  }, [view, selectedCareer, status === "authenticated"]);
   if (status === "loading")
     return (
       <div className="p-20 text-center font-bold">Cargando aplicación...</div>

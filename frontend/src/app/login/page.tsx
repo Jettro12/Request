@@ -17,16 +17,13 @@ export default function Login() {
     setError("");
 
     const formData = new FormData(e.currentTarget);
-    const credentials = {
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-    };
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
 
     try {
-      // Usar NextAuth con el microservicio de Auth
       const result = await signIn("credentials", {
-        email: credentials.email,
-        password: credentials.password,
+        email,
+        password,
         redirect: false,
       });
 
@@ -35,7 +32,6 @@ export default function Login() {
         return;
       }
 
-      // Login exitoso - redirigir al dashboard
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -74,7 +70,7 @@ export default function Login() {
                 id="email"
                 name="email"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="tu.correo@universidad.edu"
               />
             </div>
@@ -91,7 +87,7 @@ export default function Login() {
                 id="password"
                 name="password"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="••••••••"
               />
             </div>
@@ -114,14 +110,6 @@ export default function Login() {
               >
                 Regístrate aquí
               </Link>
-            </p>
-          </div>
-
-          {/* Demo credentials para testing */}
-          <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-            <p className="text-sm text-gray-600 text-center">
-              <strong>Para probar:</strong> Usa el email y contraseña con los
-              que te registraste
             </p>
           </div>
         </div>

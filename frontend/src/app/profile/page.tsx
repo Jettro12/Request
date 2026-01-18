@@ -14,34 +14,28 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const loadUserProfile = async () => {
-      // Usamos la sesión SOLO para obtener el ID del usuario logueado
+      // 1. Usamos solo el ID para la condición
       if (!session?.user?.id) return;
 
       try {
         setIsLoading(true);
         setError("");
 
-        // Consultamos directamente al microservicio de usuarios
         const result = (await ApiClient.users.getUserProfile(
           session.user.id,
         )) as any;
-        // Extracción estricta de la data según la respuesta del microservicio
+
         const userData =
-          result.data?.user ||
-          (result as any).user ||
-          ((result as any).id ? result : null);
+          result.data?.user || result.user || (result.id ? result : null);
 
         if (result.success && userData) {
-          setUser(userData as User); // Hacemos un cast final a nuestra interfaz User
+          setUser(userData as User);
           setError("");
         } else {
-          setError(
-            result.error ||
-              "No se pudo obtener la información del microservicio.",
-          );
+          setError(result.error || "No se pudo obtener la información.");
         }
       } catch (err) {
-        setError("Error de conexión con el microservicio de usuarios.");
+        setError("Error de conexión con el microservicio.");
       } finally {
         setIsLoading(false);
       }
@@ -50,7 +44,8 @@ export default function ProfilePage() {
     if (status === "authenticated") {
       loadUserProfile();
     }
-  }, [session, status]);
+    // 💡 CAMBIO CRÍTICO: Solo dependemos del ID y del Status de autenticación
+  }, [session?.user?.id, status]);
 
   // Pantallas de estado (Carga, No autenticado, Error Real)
   if (status === "loading" || isLoading) return <LoadingScreen />;

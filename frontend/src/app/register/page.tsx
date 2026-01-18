@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { ApiClient } from "../../lib/api/client"; // Asegúrate de que la ruta sea correcta
+import { ApiClient } from "../../lib/api/client";
 
 export default function Register() {
   const router = useRouter();
@@ -30,7 +30,6 @@ export default function Register() {
 
     const formData = new FormData(e.currentTarget);
 
-    // Preparamos TODOS los datos para enviarlos al Auth Service
     const registerData = {
       name:
         (formData.get("firstName") as string) +
@@ -46,9 +45,6 @@ export default function Register() {
     };
 
     try {
-      // 1. Registrar TODO de una vez en Auth Service
-      // (Nota: Si TypeScript se queja de que 'career' no existe en register,
-      // ignóralo por ahora o actualiza tu client.ts, el backend ya lo soporta).
       const registerResult = (await ApiClient.auth.register(
         registerData as any,
       )) as any;
@@ -57,7 +53,6 @@ export default function Register() {
         throw new Error(registerResult.error || "Error en el registro");
       }
 
-      // 2. Iniciar sesión automáticamente
       const loginResult = await signIn("credentials", {
         email: registerData.email,
         password: registerData.password,
@@ -68,7 +63,6 @@ export default function Register() {
         throw new Error("Error al iniciar sesión después del registro");
       }
 
-      // 3. Redirigir al dashboard
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -97,7 +91,6 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* ... (EL RESTO DEL FORMULARIO ES IGUAL, NO CAMBIA NADA VISUAL) ... */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -107,7 +100,7 @@ export default function Register() {
                   type="text"
                   name="firstName"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900"
                   placeholder="Juan"
                 />
               </div>
@@ -119,7 +112,7 @@ export default function Register() {
                   type="text"
                   name="lastName"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900"
                   placeholder="Pérez"
                 />
               </div>
@@ -133,7 +126,7 @@ export default function Register() {
                 type="email"
                 name="email"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900"
                 placeholder="tu.correo@universidad.edu"
               />
             </div>
@@ -147,7 +140,7 @@ export default function Register() {
                 name="password"
                 required
                 minLength={6}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900"
                 placeholder="Mínimo 6 caracteres"
               />
             </div>
@@ -159,7 +152,7 @@ export default function Register() {
               <select
                 name="career"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900"
               >
                 <option value="">Selecciona tu carrera</option>
                 {careers.map((c) => (
@@ -177,7 +170,7 @@ export default function Register() {
               <select
                 name="semester"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900"
               >
                 {[...Array(10)].map((_, i) => (
                   <option key={i + 1} value={i + 1}>
@@ -194,7 +187,7 @@ export default function Register() {
               <textarea
                 name="bio"
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900"
                 placeholder="Cuéntanos sobre ti..."
               />
             </div>
