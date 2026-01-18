@@ -167,14 +167,20 @@ export class ApiClient {
 
   static requests = {
     // ✅ CORREGIDO: Mapeo explícito de campos para evitar Error 500
-    createRequest: (data: any) => {
+
+    createRequest: async (data: any) => {
+      const url = getApiUrl("requests", "");
+
+      // 🛠️ MAPEADO ESTRICTO: Aseguramos que los campos coincidan con el controlador del backend
       const payload = {
         fromUserId: data.fromUserId || data.senderId,
         toUserId: data.toUserId || data.receiverId,
         type: data.type || "COLLABORATION",
         message: data.message,
       };
-      return ApiClient.post(getApiUrl("requests", ""), payload);
+
+      console.log("DEBUG: Enviando Request Payload ->", payload);
+      return ApiClient.post<ApiResponse>(url, payload);
     },
 
     getUserRequests: (userId: string, type = "all") =>

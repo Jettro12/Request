@@ -62,7 +62,7 @@ model Request {
   fromUserReview String?   @map("fromUserReview")
   toUserRating   Int?      @map("toUserRating")
   toUserReview   String?   @map("toUserReview")
-
+  messages Message[]
   @@map("requests")
 }
 
@@ -108,4 +108,16 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  content    String
+  senderId   String
+  receiverId String
+  requestId  String
+  createdAt  DateTime @default(now())
+  request    Request  @relation(fields: [requestId], references: [id])
+
+  @@map("request_messages")
 }
