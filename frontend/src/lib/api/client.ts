@@ -185,9 +185,16 @@ export class ApiClient {
   };
 
   static chat = {
+    // ✅ AGREGADO: Obtener lista de chats del usuario
+    getUserConversations: (userId: string) =>
+      ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
+
+    // ✅ CORREGIDO: Historial entre dos usuarios (requiere u1 y u2)
     getConversationMessages: (u1: string, u2: string) =>
       ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`)),
-    sendMessage: (d: any) => ApiClient.post(getApiUrl("messages", ""), d),
+
+    // ✅ CORREGIDO: Envío de mensaje (espera objeto con senderId, receiverId, content)
+    sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
   };
 }
 export default ApiClient;
