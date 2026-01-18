@@ -41,6 +41,20 @@ export interface Post {
     career?: string;
   };
 }
+export interface Request {
+  id: string;
+  type: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUser: User;
+  toUser: User;
+  _count?: {
+    messages: number;
+  };
+}
 
 export interface ApiResponse<T = any> {
   success: boolean;
