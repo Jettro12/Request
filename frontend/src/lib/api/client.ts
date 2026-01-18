@@ -192,8 +192,11 @@ export class ApiClient {
   static chat = {
     getUserConversations: (userId: string) =>
       ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
-    getConversationMessages: (u1: string, u2: string) =>
-      ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`)),
+    getConversationMessages: (u1: string, u2: string) => {
+      if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined") {
+        return Promise.resolve({ success: true, data: [] });
+      }
+      return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));,
     sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
   };
 }

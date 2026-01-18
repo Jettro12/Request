@@ -56,9 +56,21 @@ app.post("/", async (req, res) => {
   }
 });
 
-// ✅ GET /history/:u1/:u2: Obtener historial entre dos usuarios
+// ✅ GET /history/:u1/:u2: Obtener historial corregido
 app.get("/history/:u1/:u2", async (req, res) => {
   const { u1, u2 } = req.params;
+
+  // 🛡️ ESCUDO DE VALIDACIÓN:
+  // Evita errores 500 cuando los IDs vienen como strings "undefined" o "null" desde el frontend
+  const invalidIds = ["undefined", "null", "", undefined, null];
+
+  if (invalidIds.includes(u1) || invalidIds.includes(u2)) {
+    console.warn(
+      `[History] Intento de consulta con IDs inválidos: u1=${u1}, u2=${u2}`,
+    );
+    return res.json([]); // Retornamos un historial vacío en lugar de romper el servidor
+  }
+
   try {
     const messages = await prisma.message.findMany({
       where: {
@@ -71,6 +83,7 @@ app.get("/history/:u1/:u2", async (req, res) => {
     });
     res.json(messages);
   } catch (error) {
+    console.error("Error fetching history from DB:", error);
     res.status(500).json({ error: "Error fetching history" });
   }
 });
