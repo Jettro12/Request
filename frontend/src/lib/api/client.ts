@@ -33,6 +33,7 @@ export interface Post {
   content: string;
   type: string;
   careerSpace: string;
+  authorId: string; // Agregado para compatibilidad con el Schema
   createdAt: string;
   author: {
     id: string;
@@ -47,6 +48,8 @@ export interface Request {
   message: string;
   status: string;
   createdAt: string;
+  fromUserId: string;
+  toUserId: string;
   fromUser: User;
   toUser: User;
   _count?: {
@@ -91,15 +94,14 @@ export class ApiClient {
       );
     }
 
-    // 🛠️ NORMALIZADOR MÁGICO PRO
+    // Normalizador para microservicios que devuelven arrays o formatos directos
     if (Array.isArray(data)) {
       return {
         success: true,
-        data: { posts: data, users: data, requests: data },
+        data: { posts: data, users: data, requests: data, notifications: data },
       } as any;
     }
     if (data && typeof data === "object" && data.success === undefined) {
-      // Si el microservicio devuelve { user: {...} } lo dejamos pasar, si no, lo envolvemos
       return { success: true, data: data } as any;
     }
     return data;
@@ -156,15 +158,9 @@ export class ApiClient {
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
+    // ✅ CORREGIDO: Ruta directa al ID para evitar el 404
     updateProfile: (id: string, data: any) =>
-      ApiClient.put(getApiUrl("users", `profile/${id}`), {
-        name: data.name,
-        career: data.career, // 👈 Verifica que esta línea exista
-        semester: data.semester,
-        bio: data.bio,
-        skills: data.skills,
-        interests: data.interests,
-      }),
+      ApiClient.put(getApiUrl("users", `${id}`), data),
   };
 
   static posts = {
@@ -173,20 +169,15 @@ export class ApiClient {
   };
 
   static requests = {
-    // ✅ CORREGIDO: Mapeo explícito de campos para evitar Error 500
-
+    // ✅ CORREGIDO: Payload estricto y UpperCase para el Enum de base de datos
     createRequest: async (data: any) => {
       const url = getApiUrl("requests", "");
-
-      // 🛠️ MAPEADO ESTRICTO: Aseguramos que los campos coincidan con el controlador del backend
       const payload = {
         fromUserId: data.fromUserId || data.senderId,
         toUserId: data.toUserId || data.receiverId,
-        type: data.type || "COLLABORATION",
+        type: (data.type || "COLLABORATION").toUpperCase(),
         message: data.message,
       };
-
-      console.log("DEBUG: Enviando Request Payload ->", payload);
       return ApiClient.post<ApiResponse>(url, payload);
     },
 
@@ -204,15 +195,12 @@ export class ApiClient {
   };
 
   static chat = {
-    // ✅ AGREGADO: Obtener lista de chats del usuario
     getUserConversations: (userId: string) =>
       ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
 
-    // ✅ CORREGIDO: Historial entre dos usuarios (requiere u1 y u2)
     getConversationMessages: (u1: string, u2: string) =>
       ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`)),
 
-    // ✅ CORREGIDO: Envío de mensaje (espera objeto con senderId, receiverId, content)
     sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
   };
 }
