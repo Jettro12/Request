@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ApiClient } from "@/lib/api/client";
+import { AnyARecord } from "dns";
 
 interface CompleteRequestModalProps {
   requestId: string;
@@ -34,10 +35,10 @@ export default function CompleteRequestModal({
       setError("");
 
       // CORRECCIÓN: Usar ApiClient en lugar de fetch directo
-      const result = await ApiClient.requests.completeRequest(requestId, {
+      const result = (await ApiClient.requests.completeRequest(requestId, {
         rating,
         review: review.trim(),
-      });
+      })) as any;
 
       if (result.success) {
         alert("Acuerdo completado exitosamente");
