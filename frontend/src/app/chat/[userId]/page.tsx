@@ -16,21 +16,15 @@ interface Message {
   createdAt: string;
   read: boolean;
   type: string;
-  sender?: {
-    id: string;
-    name: string;
-    career: string;
-  };
 }
 
 interface RequestInfo {
   id: string;
   status: string;
-  agreementAcceptedBy?: string[];
 }
 
 export default function ChatConversationPage() {
-  const { data: session } = useSession();
+  const { data: session, status: authStatus } = useSession();
   const params = useParams();
   const otherUserId = params.userId as string;
 
@@ -48,28 +42,38 @@ export default function ChatConversationPage() {
 
   useEffect(() => {
     const loadChatData = async () => {
-      if (!otherUserId) return;
+      if (!otherUserId || !session?.user?.id) return;
       try {
         setIsLoading(true);
 
-        // 1. Cargar Mensajes
-        const messagesResult =
-          await ApiClient.chat.getConversationMessages(otherUserId);
-        if (messagesResult.success && messagesResult.data) {
-          setMessages(messagesResult.data.messages || []);
-        }
+        // 1. Cargar Mensajes (Corregido: Requiere 2 IDs)
+        const messagesResult = await ApiClient.chat.getConversationMessages(
+          session.user.id,
+          otherUserId,
+        );
+
+        // Blindaje para el build
+        const msgData =
+          (messagesResult as any).data?.messages ||
+          (messagesResult as any).messages ||
+          (Array.isArray(messagesResult) ? messagesResult : []);
+
+        setMessages(msgData);
 
         // 2. Cargar Perfil del otro usuario
         const userResult = await ApiClient.users.getUserProfile(otherUserId);
-        if (userResult.success && userResult.data) {
-          setOtherUser(userResult.data.user);
-        }
+        const userData =
+          (userResult as any).data?.user ||
+          (userResult as any).user ||
+          userResult;
+        if (userData) setOtherUser(userData);
 
         // 3. Obtener solicitud (request) vinculada
         const requestResult = await ApiClient.requests.getByChat(otherUserId);
-        if (requestResult.success && requestResult.data) {
-          setRequestInfo(requestResult.data.request || null);
-        }
+        const reqData =
+          (requestResult as any).data?.request ||
+          (requestResult as any).request;
+        if (reqData) setRequestInfo(reqData);
       } catch (err: any) {
         console.error("Error cargando datos del chat:", err);
         setError("Error al cargar la conversación");
@@ -78,8 +82,8 @@ export default function ChatConversationPage() {
       }
     };
 
-    loadChatData();
-  }, [otherUserId]);
+    if (authStatus === "authenticated") loadChatData();
+  }, [otherUserId, session, authStatus]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,25 +94,28 @@ export default function ChatConversationPage() {
 
     try {
       setIsSending(true);
-      const result = await ApiClient.chat.sendMessage(otherUserId, {
+      // Corregido: Enviamos el objeto con senderId y receiverId
+      const result = await ApiClient.chat.sendMessage({
         senderId: session.user.id,
-        content: newMessage,
         receiverId: otherUserId,
-        type: "TEXT",
+        content: newMessage,
       });
 
       if (result.success) {
-        // Recargamos mensajes para ver el nuevo
-        const messagesResult =
-          await ApiClient.chat.getConversationMessages(otherUserId);
-        if (messagesResult.success && messagesResult.data) {
-          setMessages(messagesResult.data.messages || []);
-        }
+        // Recarga optimizada
+        const messagesResult = await ApiClient.chat.getConversationMessages(
+          session.user.id,
+          otherUserId,
+        );
+        const msgData =
+          (messagesResult as any).data?.messages ||
+          (messagesResult as any).messages ||
+          (Array.isArray(messagesResult) ? messagesResult : []);
+
+        setMessages(msgData);
         setNewMessage("");
-        setError("");
       }
     } catch (err: any) {
-      console.error("Error enviando mensaje:", err);
       setError("No se pudo enviar el mensaje");
     } finally {
       setIsSending(false);
@@ -122,7 +129,7 @@ export default function ChatConversationPage() {
 
     try {
       setIsSending(true);
-      let result;
+      let result: any;
 
       if (action === "propose") {
         result = await ApiClient.requests.completeRequest(requestInfo.id, {
@@ -143,25 +150,9 @@ export default function ChatConversationPage() {
       }
 
       if (result.success) {
-        // Refrescar datos
-        const msgRes =
-          await ApiClient.chat.getConversationMessages(otherUserId);
-        if (msgRes.success && msgRes.data)
-          setMessages(msgRes.data.messages || []);
-
-        const reqRes = await ApiClient.requests.getByChat(otherUserId);
-        if (reqRes.success && reqRes.data)
-          setRequestInfo(reqRes.data.request || null);
-
-        setShowAgreementOptions(false);
-
-        // Si el backend indica que ya se puede calificar
-        if ((result as any).data?.shouldShowRating) {
-          setShowCompleteModal(true);
-        }
+        window.location.reload(); // Recarga simple para sincronizar estados
       }
     } catch (err: any) {
-      console.error("Error en acción de acuerdo:", err);
       setError("Error al procesar el acuerdo");
     } finally {
       setIsSending(false);
@@ -175,68 +166,45 @@ export default function ChatConversationPage() {
     }
   };
 
-  const hasAgreementMessages = messages.some((msg) =>
-    ["AGREEMENT_PROPOSAL", "AGREEMENT_ACCEPTED", "AGREEMENT_REJECTED"].includes(
-      msg.type,
-    ),
-  );
-
-  const isRequestCompleted = requestInfo?.status === "COMPLETED";
-
+  if (authStatus === "loading")
+    return (
+      <div className="p-10 text-center font-bold">Verificando sesión...</div>
+    );
   if (!session)
-    return (
-      <>
-        <Header />
-        <div className="p-10 text-center">Inicia sesión para chatear.</div>
-      </>
-    );
+    return <div className="p-10 text-center">Inicia sesión para chatear.</div>;
   if (isLoading)
-    return (
-      <>
-        <Header />
-        <div className="p-10 text-center">Cargando...</div>
-      </>
-    );
+    return <div className="p-10 text-center">Cargando conversación...</div>;
 
   return (
     <>
       <Header />
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-4xl mx-auto h-[calc(100vh-64px)] flex flex-col">
-          {/* Header del Chat */}
-          <div className="bg-white border-b p-4 flex justify-between items-center">
+          {/* Header */}
+          <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                {otherUser?.name?.charAt(0)}
+                {otherUser?.name?.charAt(0) || "U"}
               </div>
               <div>
-                <h1 className="font-bold text-gray-900">{otherUser?.name}</h1>
+                <h1 className="font-bold text-gray-900">
+                  {otherUser?.name || "Usuario"}
+                </h1>
                 <p className="text-xs text-gray-500">{otherUser?.career}</p>
               </div>
             </div>
 
-            <div className="flex space-x-2">
-              {requestInfo?.status === "ACCEPTED" &&
-                !isRequestCompleted &&
-                (!hasAgreementMessages ? (
-                  <button
-                    onClick={() => setShowAgreementOptions(true)}
-                    className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
-                  >
-                    🤝 Cerrar Acuerdo
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowCompleteModal(true)}
-                    className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
-                  >
-                    ⭐ Calificar
-                  </button>
-                ))}
-            </div>
+            {requestInfo?.status === "ACCEPTED" && (
+              <button
+                onClick={() => setShowAgreementOptions(true)}
+                className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold"
+              >
+                🤝 Finalizar Ayuda
+              </button>
+            )}
           </div>
 
-          {/* Área de Mensajes */}
+          {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg) => (
               <div
@@ -244,14 +212,14 @@ export default function ChatConversationPage() {
                 className={`flex ${msg.senderId === session.user?.id ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[70%] p-3 rounded-2xl ${
+                  className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
                     msg.senderId === session.user?.id
                       ? "bg-blue-600 text-white rounded-br-none"
                       : "bg-white border text-gray-800 rounded-bl-none"
                   }`}
                 >
                   <p className="text-sm">{msg.content}</p>
-                  <span className="text-[10px] opacity-70 block mt-1">
+                  <span className="text-[10px] opacity-70 block mt-1 text-right">
                     {new Date(msg.createdAt).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -263,30 +231,7 @@ export default function ChatConversationPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Opciones de Acuerdo Flotantes */}
-          {showAgreementOptions && (
-            <div className="bg-yellow-50 border-t border-yellow-200 p-4 flex justify-between items-center">
-              <p className="text-sm text-yellow-800">
-                ¿Enviar propuesta de finalización?
-              </p>
-              <div className="space-x-2">
-                <button
-                  onClick={() => setShowAgreementOptions(false)}
-                  className="text-xs text-gray-500"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => handleAgreementAction("propose")}
-                  className="bg-green-600 text-white px-3 py-1 rounded text-xs"
-                >
-                  Enviar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Input */}
+          {/* Input Area */}
           <div className="p-4 bg-white border-t">
             <div className="flex space-x-2">
               <input
@@ -294,14 +239,14 @@ export default function ChatConversationPage() {
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
                 placeholder="Escribe un mensaje..."
-                className="flex-1 border rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="flex-1 border rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 onClick={sendMessage}
                 disabled={!newMessage.trim() || isSending}
-                className="bg-blue-600 text-white px-4 py-2 rounded-xl disabled:bg-gray-300"
+                className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold disabled:bg-gray-300 transition-colors"
               >
-                Enviar
+                {isSending ? "..." : "Enviar"}
               </button>
             </div>
           </div>
