@@ -41,7 +41,11 @@ export interface Post {
     career?: string;
   };
 }
-export interface Request {
+
+/** * Cambiamos el nombre de la interfaz a UserRequest para evitar conflictos
+ * con la interfaz 'Request' nativa del navegador durante el build de Next.js
+ */
+export interface UserRequest {
   id: string;
   type: string;
   message: string;
@@ -150,12 +154,13 @@ export class ApiClient {
   static auth = {
     login: (c: any) => ApiClient.post(getApiUrl("auth", "login"), c),
     register: (d: any) => ApiClient.post(getApiUrl("auth", "register"), d),
+    // Reincorporado: Necesario para auth.service.ts
+    logout: () => ApiClient.post(getApiUrl("auth", "logout"), {}),
   };
 
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
-    // ✅ CORREGIDO: Ruta /profile/${id} para evitar el 404
     updateProfile: (id: string, data: any) =>
       ApiClient.put(getApiUrl("users", `profile/${id}`), data),
   };
@@ -166,7 +171,6 @@ export class ApiClient {
   };
 
   static requests = {
-    // ✅ CORREGIDO: Mapeo de campos y UpperCase para evitar el 500
     createRequest: async (data: any) => {
       const url = getApiUrl("requests", "");
       const payload = {
