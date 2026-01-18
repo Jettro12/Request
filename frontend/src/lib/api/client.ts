@@ -33,27 +33,12 @@ export interface Post {
   content: string;
   type: string;
   careerSpace: string;
-  authorId: string; // Agregado para compatibilidad con el Schema
   createdAt: string;
+  authorId: string;
   author: {
     id: string;
     name: string;
     career?: string;
-  };
-}
-
-export interface Request {
-  id: string;
-  type: string;
-  message: string;
-  status: string;
-  createdAt: string;
-  fromUserId: string;
-  toUserId: string;
-  fromUser: User;
-  toUser: User;
-  _count?: {
-    messages: number;
   };
 }
 
@@ -94,11 +79,10 @@ export class ApiClient {
       );
     }
 
-    // Normalizador para microservicios que devuelven arrays o formatos directos
     if (Array.isArray(data)) {
       return {
         success: true,
-        data: { posts: data, users: data, requests: data, notifications: data },
+        data: { posts: data, users: data, requests: data },
       } as any;
     }
     if (data && typeof data === "object" && data.success === undefined) {
@@ -152,15 +136,14 @@ export class ApiClient {
   static auth = {
     login: (c: any) => ApiClient.post(getApiUrl("auth", "login"), c),
     register: (d: any) => ApiClient.post(getApiUrl("auth", "register"), d),
-    logout: () => ApiClient.post(getApiUrl("auth", "logout"), {}),
   };
 
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
-    // ✅ CORREGIDO: Ruta directa al ID para evitar el 404
+    // ✅ CORREGIDO: Ruta /profile/${id} para evitar el 404
     updateProfile: (id: string, data: any) =>
-      ApiClient.put(getApiUrl("users", `${id}`), data),
+      ApiClient.put(getApiUrl("users", `profile/${id}`), data),
   };
 
   static posts = {
@@ -169,7 +152,7 @@ export class ApiClient {
   };
 
   static requests = {
-    // ✅ CORREGIDO: Payload estricto y UpperCase para el Enum de base de datos
+    // ✅ CORREGIDO: Mapeo de campos y UpperCase para evitar el 500
     createRequest: async (data: any) => {
       const url = getApiUrl("requests", "");
       const payload = {
@@ -180,16 +163,12 @@ export class ApiClient {
       };
       return ApiClient.post<ApiResponse>(url, payload);
     },
-
     getUserRequests: (userId: string, type = "all") =>
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
-
     getByChat: (otherUserId: string) =>
       ApiClient.get(getApiUrl("requests", `chat/${otherUserId}`)),
-
     updateRequestStatus: (id: string, status: string) =>
       ApiClient.put(getApiUrl("requests", `${id}/status`), { status }),
-
     completeRequest: (id: string, data: any) =>
       ApiClient.post(getApiUrl("requests", `${id}/complete`), data),
   };
@@ -197,10 +176,8 @@ export class ApiClient {
   static chat = {
     getUserConversations: (userId: string) =>
       ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
-
     getConversationMessages: (u1: string, u2: string) =>
       ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`)),
-
     sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
   };
 }
