@@ -18,14 +18,14 @@ export default function SearchClient() {
       try {
         setIsLoading(true);
 
-        const result = await ApiClient.users.searchUsers({
+        const result = (await ApiClient.users.searchUsers({
           query,
           career: "",
           skills: [],
           interests: [],
           page: 1,
           limit: 20,
-        });
+        })) as any;
 
         if (result.success && result.data) {
           setUsers(result.data.users || []);

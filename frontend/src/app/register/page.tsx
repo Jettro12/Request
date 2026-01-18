@@ -49,7 +49,9 @@ export default function Register() {
       // 1. Registrar TODO de una vez en Auth Service
       // (Nota: Si TypeScript se queja de que 'career' no existe en register,
       // ignóralo por ahora o actualiza tu client.ts, el backend ya lo soporta).
-      const registerResult = await ApiClient.auth.register(registerData as any);
+      const registerResult = (await ApiClient.auth.register(
+        registerData as any,
+      )) as any;
 
       if (!registerResult.success) {
         throw new Error(registerResult.error || "Error en el registro");
