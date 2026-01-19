@@ -99,6 +99,12 @@ async function sendToKafka(topic: string, key: string, value: any) {
   try {
     const kafkaProducer = await getProducer();
 
+    // VERIFICACIÓN AÑADIDA - ESTA ES LA LÍNEA 102
+    if (!kafkaProducer) {
+      console.error("❌ Kafka producer no disponible, mensaje no enviado");
+      return false;
+    }
+
     await kafkaProducer.send({
       topic,
       messages: [
