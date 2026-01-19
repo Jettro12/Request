@@ -117,9 +117,3 @@ jobs:
           # Usar token de sesión solo si es necesario (cuentas temporales/Academy)
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
-
-      - name: Force ASG Update (AWS Academy Friendly)
-        run: |
-          # El refresh forzará a las nuevas instancias a ejecutar el User Data de Terraform,
-          # el cual hará un 'docker login' y un 'docker-compose pull' de las imágenes 'latest'
-          aws autoscaling update-auto-scaling-group --auto-scaling-group-name request-app-asg --desired-capacity 1
