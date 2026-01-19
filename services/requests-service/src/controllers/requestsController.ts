@@ -132,6 +132,7 @@ export async function createRequest(req: Request, res: Response) {
         message,
         fromUserId,
         toUserId,
+        status: "PENDING",
         messages: {
           create: {
             content: message,

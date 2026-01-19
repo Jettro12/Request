@@ -12,20 +12,20 @@ model Request {
   type           String
   message        String    @db.Text
   status         String    @default("PENDING")
-  
-  // Referencias débiles
+
+  // Referencias débiles (microservicios)
   fromUserId     String
   toUserId       String
-  
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   completedAt    DateTime?
-  
+
   fromUserRating Int?
   fromUserReview String?
   toUserRating   Int?
   toUserReview   String?
-  
+
   messages       Message[]
 
   @@index([fromUserId])
@@ -46,5 +46,5 @@ model Message {
 
   @@index([requestId])
   @@index([senderId])
-  @@map("request_messages") // Nombre diferente para no chocar con messages-service
+  @@map("request_messages")
 }

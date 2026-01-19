@@ -1,6 +1,9 @@
 import { getSession } from "next-auth/react";
 import { getApiUrl } from "@/config/api";
 
+/* =====================================================
+   ERROR HANDLING
+===================================================== */
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -12,7 +15,9 @@ export class ApiError extends Error {
   }
 }
 
-// --- INTERFACES ---
+/* =====================================================
+   INTERFACES
+===================================================== */
 export interface User {
   id: string;
   name: string;
@@ -39,6 +44,7 @@ export interface UserRequest {
   toUser: User;
   _count?: { messages: number };
 }
+
 export interface Post {
   id: string;
   title: string;
@@ -53,50 +59,75 @@ export interface Post {
     career?: string;
   };
 }
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
+/* =====================================================
+   API CLIENT
+===================================================== */
 export class ApiClient {
+  /* -------------------------------
+     FETCH WITH AUTH
+  -------------------------------- */
   private static async fetchWithAuth(
     url: string,
     options: RequestInit = {},
   ): Promise<Response> {
     const session: any = await getSession();
     const token = session?.accessToken || session?.user?.accessToken;
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers as Record<string, string>),
     };
-    return fetch(url, { ...options, headers, credentials: "include" });
+
+    return fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
   }
 
+  /* -------------------------------
+     RESPONSE HANDLER
+  -------------------------------- */
   private static async handleResponse<T>(response: Response): Promise<T> {
-    let data;
+    let data: any;
+
     try {
       data = await response.json();
-    } catch (e) {
+    } catch {
       data = { message: response.statusText };
     }
-    if (!response.ok)
+
+    if (!response.ok) {
       throw new ApiError(
-        data.message || data.error || "Error",
+        data?.message || data?.error || "Request failed",
         response.status,
         data,
       );
-    if (Array.isArray(data))
-      return {
-        success: true,
-        data: { posts: data, users: data, requests: data },
-      } as any;
-    if (data && typeof data === "object" && data.success === undefined)
-      return { success: true, data: data } as any;
+    }
+
+    // Normalización estándar
+    if (Array.isArray(data)) {
+      return { success: true, data } as any;
+    }
+
+    if (data && typeof data === "object" && data.success === undefined) {
+      return { success: true, data } as any;
+    }
+
     return data;
   }
 
+  /* -------------------------------
+     HTTP METHODS
+  -------------------------------- */
   static async get<T>(url: string, params?: Record<string, any>): Promise<T> {
     const cleanParams = params
       ? Object.entries(params).reduce(
@@ -106,23 +137,37 @@ export class ApiClient {
               value !== null &&
               value !== "" &&
               value !== "Todos los espacios"
-            )
+            ) {
               acc[key] = value;
+            }
             return acc;
           },
           {} as Record<string, any>,
         )
       : undefined;
+
     const query = cleanParams
-      ? "?" + new URLSearchParams(cleanParams).toString()
+      ? `?${new URLSearchParams(cleanParams).toString()}`
       : "";
-    const response = await this.fetchWithAuth(url + query, { method: "GET" });
+
+    const response = await this.fetchWithAuth(url + query, {
+      method: "GET",
+    });
+
     return this.handleResponse<T>(response);
   }
 
   static async post<T>(url: string, body?: any): Promise<T> {
     const response = await this.fetchWithAuth(url, {
       method: "POST",
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  static async put<T>(url: string, body?: any): Promise<T> {
+    const response = await this.fetchWithAuth(url, {
+      method: "PUT",
       body: JSON.stringify(body),
     });
     return this.handleResponse<T>(response);
@@ -136,53 +181,83 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
+  /* =====================================================
+     AUTH (auth-service → /api/auth-custom)
+  ===================================================== */
   static auth = {
-    login: (c: any) => ApiClient.post(getApiUrl("auth", "login"), c),
-    register: (d: any) => ApiClient.post(getApiUrl("auth", "register"), d),
+    login: (credentials: any) =>
+      ApiClient.post(getApiUrl("auth", "login"), credentials),
+
+    register: (data: any) =>
+      ApiClient.post(getApiUrl("auth", "register"), data),
+
     logout: () => ApiClient.post(getApiUrl("auth", "logout"), {}),
   };
 
+  /* =====================================================
+     USERS & PROFILE
+  ===================================================== */
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
-    searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
-    // PATCH /:id es la ruta de tu profile-service
+
+    searchUsers: (params: any) =>
+      ApiClient.get(getApiUrl("users", "search"), params),
+
     updateProfile: (id: string, data: any) =>
-      ApiClient.patch(getApiUrl("users", id), data),
+      ApiClient.patch(getApiUrl("profile", id), data),
   };
 
+  /* =====================================================
+     REQUESTS
+  ===================================================== */
   static requests = {
-    createRequest: async (data: any) => {
+    createRequest: (data: any) => {
       const payload = {
         fromUserId: data.fromUserId || data.senderId,
         toUserId: data.toUserId || data.receiverId,
         type: (data.type || "COLLABORATION").toUpperCase(),
         message: data.message,
       };
-      return ApiClient.post(getApiUrl("requests", ""), payload);
+      return ApiClient.post(getApiUrl("requests"), payload);
     },
+
     getUserRequests: (userId: string, type = "all") =>
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
+
     updateRequestStatus: (id: string, status: string) =>
-      ApiClient.patch(getApiUrl("requests", `${id}/status`), { status }),
+      ApiClient.put(getApiUrl("requests", `${id}/status`), { status }),
+
     getByChat: (otherUserId: string) =>
       ApiClient.get(getApiUrl("requests", `chat/${otherUserId}`)),
+
     completeRequest: (id: string, data: any) =>
       ApiClient.post(getApiUrl("requests", `${id}/complete`), data),
   };
 
+  /* =====================================================
+     CHAT & MESSAGES
+  ===================================================== */
   static chat = {
     getUserConversations: (userId: string) =>
       ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
+
     getConversationMessages: (u1: string, u2: string) => {
-      if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined")
+      if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined") {
         return Promise.resolve({ success: true, data: [] } as any);
+      }
       return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));
     },
-    sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
+
+    sendMessage: (data: any) => ApiClient.post(getApiUrl("messages"), data),
   };
+
+  /* =====================================================
+     POSTS
+  ===================================================== */
   static posts = {
-    getPosts: (p?: any) => ApiClient.get(getApiUrl("posts", ""), p),
-    createPost: (d: any) => ApiClient.post(getApiUrl("posts", ""), d),
+    getPosts: (params?: any) => ApiClient.get(getApiUrl("posts"), params),
+
+    createPost: (data: any) => ApiClient.post(getApiUrl("posts"), data),
   };
 }
 
