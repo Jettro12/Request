@@ -171,6 +171,8 @@ export class ApiClient {
   };
 
   static chat = {
+    getUserConversations: (userId: string) =>
+      ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
     getConversationMessages: (u1: string, u2: string) => {
       if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined")
         return Promise.resolve({ success: true, data: [] } as any);
