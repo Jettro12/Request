@@ -34,7 +34,17 @@ export default function RequestsPage() {
     status: "ACCEPTED" | "REJECTED",
   ) => {
     try {
-      await ApiClient.requests.updateRequestStatus(requestId, status);
+      // CORRECCIÓN: Agregar el userId como tercer parámetro
+      if (!session?.user?.id) {
+        alert("Usuario no autenticado");
+        return;
+      }
+
+      await ApiClient.requests.updateRequestStatus(
+        requestId,
+        status,
+        session.user.id, // ← TERCER PARÁMETRO AÑADIDO
+      );
       loadRequests(); // Recargar lista
     } catch (err) {
       alert("Error al actualizar el estado");
