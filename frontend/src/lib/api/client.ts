@@ -164,6 +164,10 @@ export class ApiClient {
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
     updateRequestStatus: (id: string, status: string) =>
       ApiClient.patch(getApiUrl("requests", `${id}/status`), { status }),
+    getByChat: (otherUserId: string) =>
+      ApiClient.get(getApiUrl("requests", `chat/${otherUserId}`)),
+    completeRequest: (id: string, data: any) =>
+      ApiClient.post(getApiUrl("requests", `${id}/complete`), data),
   };
 
   static chat = {
