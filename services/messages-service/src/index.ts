@@ -39,7 +39,7 @@ app.post("/", async (req, res) => {
   }
 
   try {
-    const message = await prisma.message.create({
+    const message = await prisma.requestMessage.create({
       data: { senderId, receiverId, content, isRead: false },
     });
 
@@ -72,7 +72,7 @@ app.get("/history/:u1/:u2", async (req, res) => {
   }
 
   try {
-    const messages = await prisma.message.findMany({
+    const messages = await prisma.requestMessage.findMany({
       where: {
         OR: [
           { senderId: u1, receiverId: u2 },

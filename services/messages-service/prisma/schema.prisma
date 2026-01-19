@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,13 +8,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Message {
-  id         String   @id @default(uuid())
-  senderId   String   @map("sender_id")
-  receiverId String   @map("receiver_id")
+model RequestMessage {
+  id         String   @id @default(cuid())
   content    String
-  isRead     Boolean  @default(false) @map("is_read")
-  createdAt  DateTime @default(now()) @map("created_at")
+  senderId   String   @map("senderId")
+  receiverId String   @map("receiverId")
+  requestId  String   @map("requestId")
+  createdAt  DateTime @default(now()) @map("createdAt")
 
-  @@map("messages")
+  @@map("request_messages")
 }
