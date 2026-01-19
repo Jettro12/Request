@@ -39,7 +39,20 @@ export interface UserRequest {
   toUser: User;
   _count?: { messages: number };
 }
-
+export interface Post {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  careerSpace: string;
+  createdAt: string;
+  authorId: string;
+  author: {
+    id: string;
+    name: string;
+    career?: string;
+  };
+}
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -160,6 +173,10 @@ export class ApiClient {
       return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));
     },
     sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
+  };
+  static posts = {
+    getPosts: (p?: any) => ApiClient.get(getApiUrl("posts", ""), p),
+    createPost: (d: any) => ApiClient.post(getApiUrl("posts", ""), d),
   };
 }
 

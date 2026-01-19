@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiClient, type Post, type User } from "@/lib/api/client";
+import ApiClient, { type Post, type User } from "@/lib/api/client";
 
 const careerSpaces = [
   { name: "Todos los espacios", emoji: "🌍" },
