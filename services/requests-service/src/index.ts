@@ -9,12 +9,14 @@ import {
   completeRequest,
   getRequestByChat,
 } from "./controllers/requestsController";
+import { initKafka, checkKafkaConnection } from "./kafka";
 
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || "4003");
 const app = express();
 
+// CORS configuration
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
@@ -23,14 +25,22 @@ app.use(
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  }),
 );
 
 app.use(express.json());
 
 /* =====================================================
-   RUTAS DEL MICROSERVICIO (Sin prefijo /requests)
+   MIDDLEWARE DE LOGGING
+===================================================== */
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  next();
+});
+
+/* =====================================================
+   RUTAS DEL MICROSERVICIO
 ===================================================== */
 
 // ✅ RUTA RAÍZ (GET /): Informativa
@@ -39,33 +49,142 @@ app.get("/", (req, res) => {
     status: "ok",
     service: "requests-service",
     description: "Handles help requests",
+    endpoints: {
+      create: "POST /",
+      getUserRequests: "GET /user/:userId?type=sent|received",
+      getChatRequest: "GET /chat/:userId?otherUserId=...",
+      updateStatus: "PUT /:id/status",
+      complete: "POST /:id/complete",
+      health: "GET /health",
+    },
   });
 });
 
 // ✅ RUTA RAÍZ (POST /): Crea una nueva solicitud
 app.post("/", createRequest);
 
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "requests-service" });
+// ✅ Health check completo
+app.get("/health", async (req, res) => {
+  try {
+    // Verificar base de datos
+    await prisma.$queryRaw`SELECT 1`;
+    const dbStatus = "connected";
+
+    // Verificar Kafka
+    const kafkaStatus = (await checkKafkaConnection())
+      ? "connected"
+      : "disconnected";
+
+    res.json({
+      status: "ok",
+      service: "requests-service",
+      database: dbStatus,
+      kafka: kafkaStatus,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || "development",
+    });
+  } catch (error) {
+    console.error("Health check error:", error);
+    res.status(500).json({
+      status: "error",
+      service: "requests-service",
+      error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
-// Rutas funcionales
+// ✅ Rutas funcionales
 app.get("/user/:userId", getUserRequests);
 app.get("/chat/:userId", getRequestByChat);
 app.post("/:id/complete", completeRequest);
 app.put("/:id/status", updateRequestStatus);
 
+// ✅ Manejo de rutas no encontradas
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Route not found",
+    path: req.url,
+    method: req.method,
+    availableEndpoints: [
+      "GET /",
+      "POST /",
+      "GET /health",
+      "GET /user/:userId",
+      "GET /chat/:userId",
+      "PUT /:id/status",
+      "POST /:id/complete",
+    ],
+  });
+});
+
+// ✅ Manejo global de errores
+app.use(
+  (
+    error: any,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    console.error("Global error handler:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: error.message || "Unknown error",
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
+
 async function start() {
   try {
-    await prisma.$connect();
-    console.log("✅ Requests DB Connected");
+    console.log("🚀 Starting Requests Service...");
+    console.log("Environment:", process.env.NODE_ENV || "development");
+    console.log("Port:", PORT);
 
+    // 1. Conectar a la base de datos
+    await prisma.$connect();
+    console.log("✅ PostgreSQL database connected");
+
+    // 2. Inicializar Kafka
+    console.log("Initializing Kafka...");
+    try {
+      await initKafka();
+      console.log("✅ Kafka initialized successfully");
+    } catch (kafkaError) {
+      console.warn(
+        "⚠️ Kafka initialization failed, but continuing without it:",
+        kafkaError instanceof Error ? kafkaError.message : kafkaError,
+      );
+      console.log("Service will run without Kafka events");
+    }
+
+    // 3. Iniciar servidor
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Requests service listening on port ${PORT}`);
+      console.log(
+        `📊 Health check available at http://localhost:${PORT}/health`,
+      );
+      console.log(`📝 API documentation at http://localhost:${PORT}/`);
     });
+
+    // 4. Manejar shutdown graceful
+    const shutdown = async (signal: string) => {
+      console.log(`\n${signal} received. Shutting down gracefully...`);
+
+      try {
+        await prisma.$disconnect();
+        console.log("✅ Database disconnected");
+      } catch (dbError) {
+        console.error("Error disconnecting database:", dbError);
+      }
+
+      process.exit(0);
+    };
+
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
   } catch (err) {
-    console.error("❌ Database connection failed", err);
+    console.error("❌ Startup failed:", err);
     process.exit(1);
   }
 }
