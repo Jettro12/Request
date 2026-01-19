@@ -211,16 +211,34 @@ export class ApiClient {
      REQUESTS
   ===================================================== */
   static requests = {
-    createRequest: (data: any) => {
+    createRequest: async (data: any) => {
+      const url = getApiUrl("requests", "");
+
+      // Lista de tipos válidos según tu backend
+      const validTypes = [
+        "COLLABORATION",
+        "TUTORING",
+        "PROJECT",
+        "HELP",
+        "ADVICE",
+        "OTHER",
+      ];
+
+      // Normalizamos el tipo: quitamos espacios, pasamos a mayúsculas
+      const rawType = (data.type || "COLLABORATION").toUpperCase().trim();
+
+      // Si el tipo no está en la lista, forzamos "OTHER" para que no explote
+      const finalType = validTypes.includes(rawType) ? rawType : "OTHER";
+
       const payload = {
         fromUserId: data.fromUserId || data.senderId,
         toUserId: data.toUserId || data.receiverId,
-        type: (data.type || "COLLABORATION").toUpperCase(),
+        type: finalType,
         message: data.message,
       };
-      return ApiClient.post(getApiUrl("requests"), payload);
-    },
 
+      return ApiClient.post(url, payload);
+    },
     getUserRequests: (userId: string, type = "all") =>
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
 

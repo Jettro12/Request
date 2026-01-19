@@ -12,11 +12,16 @@ const NOTIFICATION_SERVICE_URL =
 // Configuración de tipos de solicitud válidos
 const VALID_REQUEST_TYPES = [
   "COLLABORATION",
-  "TUTORING",
-  "PROJECT",
+  "TUTORING", // Mantener si otros lo usan
+  "PROJECT", // Mantener si otros lo usan
   "OTHER",
-  "HELP",
+  "HELP", // Mantener si otros lo usan
   "ADVICE",
+  "JOB_OFFER", // ← AGREGADO para "Oferta de Trabajo"
+  "MENTORSHIP", // ← AGREGADO para "Mentoría"
+  "EMPLOYMENT", // ← Opcional: otro nombre para empleo
+  "INTERNSHIP", // ← Opcional: para prácticas/pasantías
+  "FREELANCE", // ← Opcional: trabajo freelance
 ];
 
 /* =========================
