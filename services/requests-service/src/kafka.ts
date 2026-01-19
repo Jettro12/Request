@@ -1,152 +1,171 @@
-import { Kafka, Producer, Consumer, Partitioners } from "kafkajs";
+import { Kafka, Producer, Partitioners } from "kafkajs";
 
-const brokers = (process.env.KAFKA_BROKER || "kafka:29092").split(",");
-const clientId = "requests-service";
+// Configuración adaptable
+const KAFKA_ENABLED = process.env.KAFKA_ENABLED !== "false";
+const KAFKA_BROKER = process.env.KAFKA_BROKER || "kafka:9092";
+const brokers = KAFKA_BROKER.split(",");
 
-export const kafka = new Kafka({
-  clientId,
-  brokers,
-  retry: {
-    initialRetryTime: 100,
-    retries: 8,
-  },
-});
+console.log(
+  `Kafka Config: Enabled=${KAFKA_ENABLED}, Brokers=${brokers.join(",")}`,
+);
 
-// Variables para manejar estado
+let kafka: Kafka | null = null;
 let producer: Producer | null = null;
-let consumer: Consumer | null = null;
-let isInitialized = false;
+let isKafkaReady = false;
 
 export const REQUESTS_TOPIC = process.env.REQUESTS_TOPIC || "requests";
 
-export async function getProducer(): Promise<Producer> {
-  if (!producer) {
-    producer = kafka.producer({
-      createPartitioner: Partitioners.LegacyPartitioner,
+// Crear cliente Kafka
+if (KAFKA_ENABLED) {
+  try {
+    kafka = new Kafka({
+      clientId: "requests-service",
+      brokers,
+      retry: {
+        initialRetryTime: 300,
+        retries: 10,
+        maxRetryTime: 10000,
+      },
+      connectionTimeout: 10000,
+      requestTimeout: 30000,
     });
+    console.log("✅ Kafka client initialized");
+  } catch (error) {
+    console.error("❌ Failed to initialize Kafka client:", error);
+  }
+}
+
+export async function getProducer(): Promise<Producer | null> {
+  if (!KAFKA_ENABLED || !kafka) {
+    console.log("⚠️ Kafka is disabled or not initialized");
+    return null;
   }
 
-  if (!isInitialized) {
-    await initKafka();
+  if (!producer) {
+    try {
+      producer = kafka.producer({
+        createPartitioner: Partitioners.LegacyPartitioner,
+        allowAutoTopicCreation: true,
+        transactionTimeout: 30000,
+      });
+
+      console.log("Attempting to connect Kafka producer...");
+      await producer.connect();
+      console.log("✅ Kafka producer connected");
+      isKafkaReady = true;
+    } catch (error) {
+      console.error("❌ Failed to connect Kafka producer:", error);
+      producer = null;
+      isKafkaReady = false;
+    }
   }
 
   return producer;
 }
 
-export async function getConsumer(): Promise<Consumer> {
-  if (!consumer) {
-    consumer = kafka.consumer({
-      groupId: "requests-service-group",
-    });
+// Función para verificar conexión a Kafka
+export async function checkKafkaConnection(): Promise<boolean> {
+  if (!KAFKA_ENABLED) {
+    return false;
   }
 
-  if (!isInitialized) {
-    await initKafka();
+  if (isKafkaReady) {
+    return true;
   }
 
-  return consumer;
-}
-
-export async function initKafka() {
-  if (isInitialized) return;
-
-  console.log("Connecting to Kafka brokers:", brokers);
-  const admin = kafka.admin();
-  const maxRetries = 8;
-  let attempt = 0;
-
-  while (attempt < maxRetries) {
-    try {
-      await admin.connect();
-      console.log("Kafka admin connected");
-
-      // Verificar si el topic existe
-      const topics = await admin.listTopics();
-      if (!topics.includes(REQUESTS_TOPIC)) {
-        console.log(`Creating topic: ${REQUESTS_TOPIC}`);
-        await admin.createTopics({
-          topics: [
-            {
-              topic: REQUESTS_TOPIC,
-              numPartitions: 1,
-              replicationFactor: 1,
-            },
-          ],
-          waitForLeaders: true,
-        });
-      }
-      await admin.disconnect();
-
-      // Conectar producer
-      const prod = await getProducer();
-      await prod.connect();
-      console.log("Kafka producer connected");
-
-      // Conectar consumer
-      const cons = await getConsumer();
-      await cons.connect();
-      await cons.subscribe({
-        topic: REQUESTS_TOPIC,
-        fromBeginning: false,
-      });
-      console.log("Kafka consumer subscribed");
-
-      isInitialized = true;
-      console.log("Kafka initialization complete");
-      return;
-    } catch (err) {
-      attempt++;
-      console.warn(
-        `Kafka init attempt ${attempt} failed:`,
-        err instanceof Error ? err.message : err,
-      );
-
-      try {
-        await admin.disconnect().catch(() => {});
-        if (producer) await producer.disconnect().catch(() => {});
-        if (consumer) await consumer.disconnect().catch(() => {});
-      } catch (_) {}
-
-      if (attempt >= maxRetries) {
-        console.error("Unable to initialize Kafka after multiple attempts");
-        // No lanzamos error, dejamos que el servicio continúe
-        return;
-      }
-
-      await new Promise((r) => setTimeout(r, 2000 * attempt)); // Backoff exponencial
-    }
-  }
-}
-
-export async function sendToKafka(topic: string, key: string, value: any) {
   try {
     const producer = await getProducer();
+    if (producer) {
+      // Probar enviando un mensaje de ping
+      await producer.send({
+        topic: REQUESTS_TOPIC,
+        messages: [
+          {
+            key: "ping",
+            value: JSON.stringify({
+              type: "ping",
+              timestamp: new Date().toISOString(),
+            }),
+          },
+        ],
+      });
+      console.log("✅ Kafka connection verified");
+      return true;
+    }
+  } catch (error) {
+    console.error("❌ Kafka connection check failed:", error);
+  }
+
+  return false;
+}
+
+// Función segura para enviar mensajes
+export async function sendToKafkaSafe(
+  topic: string,
+  key: string,
+  value: any,
+): Promise<boolean> {
+  if (!KAFKA_ENABLED) {
+    console.log(`[Kafka Disabled] Would send to ${topic}: ${key}`);
+    return true; // Simular éxito
+  }
+
+  try {
+    const producer = await getProducer();
+    if (!producer) {
+      console.log(`⚠️ Kafka producer not available for ${topic}`);
+      return false;
+    }
 
     await producer.send({
       topic,
       messages: [
         {
           key,
-          value: JSON.stringify(value),
+          value: JSON.stringify({
+            ...value,
+            timestamp: new Date().toISOString(),
+            service: "requests-service",
+          }),
         },
       ],
     });
 
-    console.log(`✅ Message sent to Kafka topic ${topic}:`, key);
+    console.log(`✅ Kafka event sent: ${topic} - ${key}`);
     return true;
   } catch (error) {
-    console.error(`❌ Failed to send message to Kafka topic ${topic}:`, error);
+    console.error(`❌ Failed to send Kafka event to ${topic}:`, error);
     return false;
   }
 }
 
-// Función para verificar conexión
-export async function checkKafkaConnection() {
+// Inicialización no bloqueante
+export async function initKafka(): Promise<boolean> {
+  if (!KAFKA_ENABLED) {
+    console.log("ℹ️ Kafka is disabled");
+    return false;
+  }
+
+  console.log("Starting Kafka initialization...");
+
   try {
-    await initKafka();
+    // Intentar conectar sin bloquear
+    setTimeout(async () => {
+      try {
+        const producer = await getProducer();
+        if (producer) {
+          console.log("✅ Kafka initialized successfully");
+        } else {
+          console.log("⚠️ Kafka producer not available");
+        }
+      } catch (error) {
+        console.error("❌ Kafka background initialization failed:", error);
+      }
+    }, 5000); // Esperar 5 segundos antes de intentar
+
     return true;
   } catch (error) {
-    console.error("Kafka connection check failed:", error);
+    console.error("❌ Kafka initialization failed:", error);
     return false;
   }
 }
