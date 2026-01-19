@@ -122,7 +122,7 @@ export default function ChatConversationPage() {
   const handleAgreementAction = async (
     action: "propose" | "accept" | "reject",
   ) => {
-    if (!requestInfo?.id) return;
+    if (!requestInfo?.id || !session?.user?.id) return;
 
     try {
       setIsSending(true);
@@ -140,9 +140,11 @@ export default function ChatConversationPage() {
           review: "Acuerdo aceptado",
         });
       } else {
+        // CORRECCIÓN: Usar session.user.id en lugar de currentUserId
         result = await ApiClient.requests.updateRequestStatus(
           requestInfo.id,
           "REJECTED",
+          session.user.id, // ← CORREGIDO: Usar session.user.id
         );
       }
 
