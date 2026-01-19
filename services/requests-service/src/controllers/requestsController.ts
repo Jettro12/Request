@@ -95,7 +95,7 @@ async function notifyUser(data: {
   }
 }
 
-async function sendToKafka(topic: string, key: string, value: any) {
+async function sendToKafkaSafe(topic: string, key: string, value: any) {
   try {
     const kafkaProducer = await getProducer();
 
@@ -318,7 +318,7 @@ export async function createRequest(req: Request, res: Response) {
 
     // Enviar evento a Kafka
     try {
-      await sendToKafka(REQUESTS_TOPIC, request.id, {
+      await sendToKafkaSafe(REQUESTS_TOPIC, request.id, {
         action: "request.created",
         request: {
           id: request.id,
@@ -464,7 +464,7 @@ export async function updateRequest(req: Request, res: Response) {
 
     // Enviar evento a Kafka
     try {
-      await sendToKafka(REQUESTS_TOPIC, id, {
+      await sendToKafkaSafe(REQUESTS_TOPIC, id, {
         action: "request.status_changed",
         oldStatus: request.status,
         newStatus: updated.status,
