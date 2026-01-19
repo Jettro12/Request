@@ -208,42 +208,28 @@ export class ApiClient {
   };
 
   /* =====================================================
-     REQUESTS
+     REQUESTS - CORREGIDO
   ===================================================== */
   static requests = {
-    createRequest: async (data: any) => {
-      const url = getApiUrl("requests", "");
-
-      // Lista de tipos válidos según tu backend
-      const validTypes = [
-        "COLLABORATION",
-        "TUTORING",
-        "PROJECT",
-        "HELP",
-        "ADVICE",
-        "OTHER",
-      ];
-
-      // Normalizamos el tipo: quitamos espacios, pasamos a mayúsculas
-      const rawType = (data.type || "COLLABORATION").toUpperCase().trim();
-
-      // Si el tipo no está en la lista, forzamos "OTHER" para que no explote
-      const finalType = validTypes.includes(rawType) ? rawType : "OTHER";
-
+    createRequest: (data: any) => {
       const payload = {
         fromUserId: data.fromUserId || data.senderId,
         toUserId: data.toUserId || data.receiverId,
-        type: finalType,
+        type: (data.type || "COLLABORATION").toUpperCase(),
         message: data.message,
       };
-
-      return ApiClient.post(url, payload);
+      return ApiClient.post(getApiUrl("requests"), payload);
     },
+
     getUserRequests: (userId: string, type = "all") =>
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
 
-    updateRequestStatus: (id: string, status: string) =>
-      ApiClient.put(getApiUrl("requests", `${id}/status`), { status }),
+    // CORRECCIÓN: Agregar userId como parámetro requerido
+    updateRequestStatus: (id: string, status: string, userId: string) =>
+      ApiClient.put(getApiUrl("requests", `${id}/status`), {
+        status,
+        userId, // ← AÑADIDO: Este campo es requerido por el backend
+      }),
 
     getByChat: (userId: string, otherUserId: string) =>
       ApiClient.get(getApiUrl("requests", `chat/${userId}`), { otherUserId }),
