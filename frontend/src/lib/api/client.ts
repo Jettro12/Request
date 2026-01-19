@@ -252,7 +252,13 @@ export class ApiClient {
       return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));
     },
 
-    sendMessage: (data: any) => ApiClient.post(getApiUrl("messages"), data),
+    sendMessage: (data: any) =>
+      ApiClient.post(getApiUrl("messages"), {
+        senderId: data.senderId,
+        receiverId: data.receiverId,
+        content: data.content,
+        requestId: data.requestId, // ← REQUERIDO
+      }),
   };
 
   /* =====================================================
