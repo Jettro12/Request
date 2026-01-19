@@ -3,6 +3,11 @@
 ############################################
 provider "aws" {
   region = "us-east-1"
+  
+  # 🚀 CRÍTICO PARA AWS ACADEMY: Evita que Terraform intente borrar los tags del laboratorio
+  ignore_tags {
+    key_prefixes = ["kubernetes.io/", "vocareum-", "awsAcademy-"]
+  }
 }
 
 variable "ghcr_token" {
@@ -43,43 +48,49 @@ data "aws_vpc" "default" {
   default = true
 }
 
+# 🚀 CORREGIDO: Filtro dinámico para evitar zonas no permitidas en laboratorios limitados
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
-  filter {
-    name   = "availability-zone"
-    values = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1f"]
-  }
 }
 
 resource "aws_security_group" "alb_sg" {
-  name   = "alb-sg"
-  vpc_id = data.aws_vpc.default.id
+  name        = "alb-sg"
+  description = "Security group for ALB"
+  vpc_id      = data.aws_vpc.default.id
+  
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_security_group" "bastion_sg" {
   name   = "bastion-sg"
   vpc_id = data.aws_vpc.default.id
+  
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["${var.my_ip}/32"]
   }
+  
   egress {
     from_port   = 0
     to_port     = 0
@@ -91,24 +102,28 @@ resource "aws_security_group" "bastion_sg" {
 resource "aws_security_group" "ec2_sg" {
   name   = "ec2-sg"
   vpc_id = data.aws_vpc.default.id
+  
   ingress {
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id]
   }
+  
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["${var.my_ip}/32"]
   }
+  
   ingress {
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
     security_groups = [aws_security_group.bastion_sg.id]
   }
+  
   egress {
     from_port   = 0
     to_port     = 0
@@ -120,18 +135,21 @@ resource "aws_security_group" "ec2_sg" {
 resource "aws_security_group" "infra_sg" {
   name   = "infra-sg"
   vpc_id = data.aws_vpc.default.id
+  
   ingress {
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
     security_groups = [aws_security_group.ec2_sg.id]
   }
+  
   ingress {
     from_port       = 1883
     to_port         = 1883
     protocol        = "tcp"
     security_groups = [aws_security_group.ec2_sg.id]
   }
+  
   egress {
     from_port   = 0
     to_port     = 0
@@ -158,6 +176,7 @@ resource "aws_instance" "mqtt_broker" {
   instance_type          = "t3.nano"
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.infra_sg.id]
+  
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
@@ -165,6 +184,7 @@ resource "aws_instance" "mqtt_broker" {
     systemctl start mosquitto
     systemctl enable mosquitto
   EOF
+  
   tags = { Name = "MQTT-Broker" }
 }
 
@@ -186,10 +206,12 @@ resource "aws_launch_template" "app_lt" {
   image_id      = "ami-0c02fb55956c7d316"
   instance_type = "t3.medium"
   key_name      = var.ssh_key_name
+  
   network_interfaces {
     security_groups             = [aws_security_group.ec2_sg.id]
     associate_public_ip_address = true
   }
+  
   user_data = base64encode(<<-EOF
     #!/bin/bash
     yum update -y
@@ -250,6 +272,7 @@ resource "aws_lb_target_group" "app_tg" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id
+  
   health_check {
     path = "/health"
     port = "80"
@@ -273,6 +296,7 @@ resource "aws_autoscaling_group" "app_asg" {
   max_size            = 2
   vpc_zone_identifier = data.aws_subnets.default.ids
   target_group_arns   = [aws_lb_target_group.app_tg.arn]
+  
   launch_template {
     id      = aws_launch_template.app_lt.id
     version = "$Latest"

@@ -20,7 +20,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 app.use(express.json());
 
@@ -28,42 +28,24 @@ app.use(express.json());
 // REGISTER ROUTE (OPTIMIZADA PARA DB COMPARTIDA)
 // ==========================================
 app.post("/register", async (req, res) => {
-  // 1. Recibimos TODOS los datos del frontend
-  const { name, email, password, career, semester, bio, skills, interests } =
-    req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "missing_fields" });
-  }
+  const { name, email, password, career, semester, bio } = req.body;
 
   try {
     const hashed = await bcrypt.hash(password, 10);
-
-    // 2. Guardamos TODO de una sola vez (Auth + Perfil)
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashed,
-        career, // ✅ Guardamos carrera directamente
-        semester, // ✅ Guardamos semestre directamente
-        bio, // ✅ Guardamos bio directamente
-        skills: skills || [],
-        interests: interests || [],
+        career,
+        semester: semester ? Number(semester) : null,
+        bio: bio || "",
+        role: "user",
+        // skills e interests nacen vacíos aquí como pediste
       },
     });
 
-    // 3. 🚀 ELIMINADO: Ya NO llamamos a users-service/profile.
-    // Como la DB es compartida, el users-service ya puede "ver"
-    // estos datos inmediatamente sin hacer nada extra.
-
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-    });
+    res.json({ user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
@@ -121,7 +103,7 @@ app.get("/health", (_req, res) => {
 
 async function start() {
   app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Auth service listening on ${PORT}`)
+    console.log(`Auth service listening on ${PORT}`),
   );
 
   // prisma warmup

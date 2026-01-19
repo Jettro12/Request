@@ -7,30 +7,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ✅ MODELO MAESTRO (CON ROLE)
 model User {
   id            String    @id @default(cuid())
-  email         String    @unique
   name          String?
+  email         String    @unique
   password      String?
   image         String?
   
-  // 👇 CAMPO AGREGADO
-  role          String    @default("user") 
-
-  // Datos de Perfil
+  // Datos de Perfil (Coincidiendo con Supabase)
   career        String?
   semester      Int?
   bio           String?
-  skills        String[]
-  interests     String[]
+  role          String    @default("user")
+  
+  skills        String[]  @default([])
+  interests     String[]  @default([])
+  
   rating        Float     @default(0)
   reviewCount   Int       @default(0)
   
+  emailVerified DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // Relaciones de Auth
+  // Relaciones necesarias para NextAuth si las usas
   accounts      Account[]
   sessions      Session[]
 
@@ -38,19 +38,19 @@ model User {
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String  @map("user_id")
-  type              String
-  provider          String
-  providerAccountId String  @map("provider_account_id")
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String  @id @default(cuid())
+  userId             String  @map("user_id")
+  type               String
+  provider           String
+  providerAccountId  String  @map("provider_account_id")
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")

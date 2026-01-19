@@ -27,21 +27,6 @@ export interface User {
   createdAt?: string;
 }
 
-export interface Post {
-  id: string;
-  title: string;
-  content: string;
-  type: string;
-  careerSpace: string;
-  createdAt: string;
-  authorId: string;
-  author: {
-    id: string;
-    name: string;
-    career?: string;
-  };
-}
-
 export interface UserRequest {
   id: string;
   type: string;
@@ -52,9 +37,7 @@ export interface UserRequest {
   toUserId: string;
   fromUser: User;
   toUser: User;
-  _count?: {
-    messages: number;
-  };
+  _count?: { messages: number };
 }
 
 export interface ApiResponse<T = any> {
@@ -85,24 +68,19 @@ export class ApiClient {
     } catch (e) {
       data = { message: response.statusText };
     }
-
-    if (!response.ok) {
+    if (!response.ok)
       throw new ApiError(
-        data.message || data.error || "Error en la solicitud",
+        data.message || data.error || "Error",
         response.status,
         data,
       );
-    }
-
-    if (Array.isArray(data)) {
+    if (Array.isArray(data))
       return {
         success: true,
         data: { posts: data, users: data, requests: data },
       } as any;
-    }
-    if (data && typeof data === "object" && data.success === undefined) {
+    if (data && typeof data === "object" && data.success === undefined)
       return { success: true, data: data } as any;
-    }
     return data;
   }
 
@@ -122,12 +100,10 @@ export class ApiClient {
           {} as Record<string, any>,
         )
       : undefined;
-
     const query = cleanParams
-      ? new URLSearchParams(cleanParams).toString()
+      ? "?" + new URLSearchParams(cleanParams).toString()
       : "";
-    const fullUrl = query ? `${url}?${query}` : url;
-    const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
+    const response = await this.fetchWithAuth(url + query, { method: "GET" });
     return this.handleResponse<T>(response);
   }
 
@@ -139,15 +115,14 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  static async put<T>(url: string, body?: any): Promise<T> {
+  static async patch<T>(url: string, body?: any): Promise<T> {
     const response = await this.fetchWithAuth(url, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(body),
     });
     return this.handleResponse<T>(response);
   }
 
-  // --- SERVICIOS ---
   static auth = {
     login: (c: any) => ApiClient.post(getApiUrl("auth", "login"), c),
     register: (d: any) => ApiClient.post(getApiUrl("auth", "register"), d),
@@ -157,48 +132,33 @@ export class ApiClient {
   static users = {
     getUserProfile: (id: string) => ApiClient.get(getApiUrl("users", id)),
     searchUsers: (p: any) => ApiClient.get(getApiUrl("users", "search"), p),
+    // PATCH /:id es la ruta de tu profile-service
     updateProfile: (id: string, data: any) =>
-      ApiClient.put(getApiUrl("users", `${id}/profile`), data),
-  };
-
-  static posts = {
-    getPosts: (p?: any) => ApiClient.get(getApiUrl("posts", ""), p),
-    createPost: (d: any) => ApiClient.post(getApiUrl("posts", ""), d),
+      ApiClient.patch(getApiUrl("users", id), data),
   };
 
   static requests = {
     createRequest: async (data: any) => {
-      const url = getApiUrl("requests", "");
       const payload = {
         fromUserId: data.fromUserId || data.senderId,
         toUserId: data.toUserId || data.receiverId,
         type: (data.type || "COLLABORATION").toUpperCase(),
         message: data.message,
       };
-      return ApiClient.post<ApiResponse>(url, payload);
+      return ApiClient.post(getApiUrl("requests", ""), payload);
     },
     getUserRequests: (userId: string, type = "all") =>
       ApiClient.get(getApiUrl("requests", `user/${userId}`), { type }),
-    getByChat: (otherUserId: string) =>
-      ApiClient.get(getApiUrl("requests", `chat/${otherUserId}`)),
     updateRequestStatus: (id: string, status: string) =>
-      ApiClient.put(getApiUrl("requests", `${id}/status`), { status }),
-    completeRequest: (id: string, data: any) =>
-      ApiClient.post(getApiUrl("requests", `${id}/complete`), data),
+      ApiClient.patch(getApiUrl("requests", `${id}/status`), { status }),
   };
 
   static chat = {
-    getUserConversations: (userId: string) =>
-      ApiClient.get(getApiUrl("conversations", `user/${userId}`)),
-
-    // ✅ Corregido sintácticamente para evitar el error de build
     getConversationMessages: (u1: string, u2: string) => {
-      if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined") {
+      if (!u1 || !u2 || u1 === "undefined" || u2 === "undefined")
         return Promise.resolve({ success: true, data: [] } as any);
-      }
       return ApiClient.get(getApiUrl("messages", `history/${u1}/${u2}`));
     },
-
     sendMessage: (data: any) => ApiClient.post(getApiUrl("messages", ""), data),
   };
 }
