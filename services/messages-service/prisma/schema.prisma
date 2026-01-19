@@ -1,3 +1,13 @@
+// services/messages-service/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")  // La misma URL que usan otros servicios
+}
+
 model RequestMessage {
   id         String   @id @default(cuid())
   content    String
