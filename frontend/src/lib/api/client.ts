@@ -227,8 +227,8 @@ export class ApiClient {
     updateRequestStatus: (id: string, status: string) =>
       ApiClient.put(getApiUrl("requests", `${id}/status`), { status }),
 
-    getByChat: (otherUserId: string) =>
-      ApiClient.get(getApiUrl("requests", `chat/${otherUserId}`)),
+    getByChat: (userId: string, otherUserId: string) =>
+      ApiClient.get(getApiUrl("requests", `chat/${userId}`), { otherUserId }),
 
     completeRequest: (id: string, data: any) =>
       ApiClient.post(getApiUrl("requests", `${id}/complete`), data),

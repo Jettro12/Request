@@ -69,6 +69,7 @@ export default function ChatConversationPage() {
         // 3. Obtener solicitud
         const requestResult = (await ApiClient.requests.getByChat(
           otherUserId,
+          session.user.id,
         )) as any;
         const reqData =
           requestResult.data?.request || requestResult.request || null;
