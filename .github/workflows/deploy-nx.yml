@@ -1,261 +1,119 @@
-name: CI/CD con NX y AWS Manual
+name: Deploy Microservices to AWS
 
 on:
   push:
     branches:
       - 'fix-microservices'
+    paths:
+      - 'services/**'
+      - 'frontend/**'
+      - 'nginx/**'
+      - '.github/workflows/**'
 
 permissions:
   packages: write
   contents: read
 
 jobs:
-  # 1. DETECCIÓN DE CAMBIOS CON NX
-  detect-changes:
-    name: Identificar Proyectos Afectados (NX)
+  changes:
     runs-on: ubuntu-latest
     outputs:
-      affected: ${{ steps.affected.outputs.affected }}
-      frontend-changed: ${{ steps.check-frontend.outputs.changed }}
-      has-changes: ${{ steps.affected.outputs.has_changes }}
-
+      auth: ${{ steps.filter.outputs.auth }}
+      users: ${{ steps.filter.outputs.users }}
+      posts: ${{ steps.filter.outputs.posts }}
+      requests: ${{ steps.filter.outputs.requests }}
+      notification: ${{ steps.filter.outputs.notification }}
+      profile: ${{ steps.filter.outputs.profile }}
+      ratings: ${{ steps.filter.outputs.ratings }}
+      messages: ${{ steps.filter.outputs.messages }}
+      conversations: ${{ steps.filter.outputs.conversations }}
+      chat: ${{ steps.filter.outputs.chat }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      nginx: ${{ steps.filter.outputs.nginx }}
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          fetch-depth: 0
+          filters: |
+            auth: ['services/auth-service/**']
+            users: ['services/users-service/**']
+            posts: ['services/posts-service/**']
+            requests: ['services/requests-service/**']
+            notification: ['services/notification-service/**']
+            profile: ['services/profile-service/**']
+            ratings: ['services/ratings-service/**']
+            messages: ['services/messages-service/**']
+            conversations: ['services/conversations-service/**']
+            chat: ['services/chat-service/**']
+            frontend: ['frontend/**']
+            nginx: ['nginx/**']
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Obtener proyectos afectados
-        id: affected
-        run: |
-          # Usar git diff como respaldo si NX falla
-          AFFECTED=$(npx nx show projects --affected --base=HEAD~1 --head=HEAD --json 2>/dev/null || echo "[]")
-
-          # Si NX devuelve array vacío, verificar con git diff
-          if [ "$AFFECTED" = "[]" ]; then
-            echo "NX no detectó cambios, verificando con git diff..."
-            # Lista de carpetas a monitorear
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "(frontend/|backend/|nginx/|services/)" || true)
-            if [ -n "$CHANGED_FILES" ]; then
-              # Si hay cambios en estas rutas, marcar todo
-              AFFECTED='["frontend", "backend", "nginx"]'
-            fi
-          fi
-
-          # Determinar si hay cambios
-          if [ "$AFFECTED" != "[]" ] && [ -n "$AFFECTED" ]; then
-            HAS_CHANGES="true"
-          else
-            HAS_CHANGES="false"
-          fi
-
-          echo "Proyectos afectados: $AFFECTED"
-          echo "affected=$AFFECTED" >> $GITHUB_OUTPUT
-          echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
-
-      - name: Verificar si frontend cambió
-        id: check-frontend
-        run: |
-          AFFECTED='${{ steps.affected.outputs.affected }}'
-          if [[ "$AFFECTED" == *"frontend"* ]] || [[ "$AFFECTED" == *"request-app-frontend"* ]]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Compilar proyectos afectados
-        if: steps.affected.outputs.has_changes == 'true'
-        run: npx nx affected --target=build --parallel=3 || echo "Build puede haber fallado para algunos proyectos"
-
-  # 2. BUILD DOCKER SOLO PARA LO QUE CAMBIÓ
-  build-docker:
-    name: Construir Imágenes Docker
-    needs: detect-changes
-    if: needs.detect-changes.outputs.has_changes == 'true'
+  build-and-push:
+    needs: changes
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        # Usar lista fija si NX no detecta bien
-        service: ['frontend', 'backend', 'nginx']
-
+        service:
+          [
+            auth,
+            users,
+            posts,
+            requests,
+            notification,
+            profile,
+            ratings,
+            messages,
+            conversations,
+            chat,
+            frontend,
+            nginx,
+          ]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        if: needs.changes.outputs[matrix.service] == 'true'
+        uses: actions/checkout@v4
 
-      - name: Verificar si este servicio cambió
-        id: check-service
-        run: |
-          AFFECTED='${{ needs.detect-changes.outputs.affected }}'
-          SERVICE='${{ matrix.service }}'
-
-          # Mapear nombres NX a nombres de servicio
-          if [[ "$SERVICE" == "frontend" ]] && [[ "$AFFECTED" == *"frontend"* || "$AFFECTED" == *"request-app-frontend"* ]]; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          elif [[ "$AFFECTED" == *"$SERVICE"* ]]; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          elif [ "$SERVICE" == "backend" ] && [[ "$AFFECTED" != "[]" ]]; then
-            # Si hay cualquier cambio, construir backend también por seguridad
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Configurar Docker Buildx
-        if: steps.check-service.outputs.should_build == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login a GitHub Container Registry
-        if: steps.check-service.outputs.should_build == 'true'
+      - name: Login to GHCR
+        if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Construir y Empujar Imagen
-        if: steps.check-service.outputs.should_build == 'true'
+      - name: Set up Docker Buildx
+        if: needs.changes.outputs[matrix.service] == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push
+        if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/build-push-action@v5
         with:
           context: >-
-            ${{ 
-              matrix.service == 'frontend' && './frontend' ||
-              matrix.service == 'nginx' && './nginx' ||
-              './backend'
-            }}
+            ${{ matrix.service == 'frontend' && './frontend' || 
+                matrix.service == 'nginx' && './nginx' || 
+                format('./services/{0}-service', matrix.service) }}
           push: true
+          # IMPORTANTE: Sincronizar nombres con docker-compose.prod.yml
           tags: |
-            ghcr.io/jettro12/${{ matrix.service }}:latest
-            ghcr.io/jettro12/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/jettro12/${{ 
+              matrix.service == 'frontend' && 'frontend' || 
+              matrix.service == 'nginx' && 'nginx' || 
+              format('{0}-service', matrix.service) 
+            }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            NODE_ENV=production
 
-  # 3. DEPLOY EN AWS (CON REFRESH MANUAL)
-  deploy-aws:
-    name: Desplegar en AWS
-    needs: [detect-changes, build-docker]
-    if: needs.detect-changes.outputs.has_changes == 'true'
+  deploy:
+    needs: [build-and-push]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Configurar Credenciales AWS con Session Token
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # Para AWS Academy
+          # Usar token de sesión solo si es necesario (cuentas temporales/Academy)
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
-
-      - name: Obtener Estado Actual de Instancias
-        id: get-instances
-        run: |
-          # Obtener instancias del Auto Scaling Group
-          INSTANCES=$(aws autoscaling describe-auto-scaling-instances \
-            --query "AutoScalingInstances[?AutoScalingGroupName=='request-app-asg'].InstanceId" \
-            --output text)
-
-          echo "Instancias encontradas: $INSTANCES"
-          echo "instances=$INSTANCES" >> $GITHUB_OUTPUT
-
-          if [ -z "$INSTANCES" ]; then
-            echo "⚠️  No se encontraron instancias en el ASG"
-          fi
-
-      - name: Verificar Health Check del ALB
-        run: |
-          # Obtener DNS del ALB
-          ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --names app-alb \
-            --query "LoadBalancers[0].DNSName" \
-            --output text 2>/dev/null || echo "")
-
-          if [ -n "$ALB_DNS" ]; then
-            echo "ALB DNS: $ALB_DNS"
-            echo "URL de la aplicación: http://$ALB_DNS"
-            
-            # Verificar health check (sin fallar el workflow)
-            curl -f --max-time 10 http://$ALB_DNS/health || \
-              echo "⚠️  Health check falló o endpoint no disponible"
-          else
-            echo "⚠️  No se pudo obtener DNS del ALB"
-          fi
-
-      - name: Mostrar Comandos para Refresh Manual
-        run: |
-          echo "=========================================="
-          echo "🚀 DESPLIEGUE COMPLETADO - REFRESH MANUAL"
-          echo "=========================================="
-          echo ""
-          echo "Las nuevas imágenes están en GHCR:"
-          echo "- ghcr.io/jettro12/frontend:latest"
-          echo "- ghcr.io/jettro12/backend:latest"
-          echo "- ghcr.io/jettro12/nginx:latest"
-          echo ""
-          echo "Para refrescar las instancias MANUALMENTE:"
-          echo ""
-          echo "1. CONECTARSE A CADA INSTANCIA (SSH):"
-          echo "--------------------------------------"
-          INSTANCES="${{ steps.get-instances.outputs.instances }}"
-          for INSTANCE in $INSTANCES; do
-            echo "ssh -i tu-key.pem ec2-user@$(aws ec2 describe-instances --instance-ids $INSTANCE --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
-          done
-          echo ""
-          echo "2. EJECUTAR EN CADA INSTANCIA:"
-          echo "--------------------------------"
-          cat << 'EOF'
-          cd /app
-          docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-          docker-compose -f docker-compose.prod.yml pull
-          docker-compose -f docker-compose.prod.yml up -d --force-recreate
-          EOF
-          echo ""
-          echo "3. OPCIONAL: Reiniciar instancias (menos eficiente):"
-          echo "---------------------------------------------------"
-          for INSTANCE in $INSTANCES; do
-            echo "aws ec2 reboot-instances --instance-ids $INSTANCE"
-          done
-          echo ""
-          echo "4. VERIFICAR DEPLOY:"
-          echo "--------------------"
-          echo "curl http://$ALB_DNS/health"
-          echo ""
-          echo "=========================================="
-
-  # 4. NOTIFICACIÓN (OPCIONAL)
-  notify:
-    name: Resumen del Despliegue
-    needs: [deploy-aws]
-    if: always()
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Generar Resumen
-        run: |
-          echo "# 📊 Resumen del Despliegue" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Autor:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🔍 Cambios Detectados" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          echo '${{ needs.detect-changes.outputs.affected }}' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🐳 Imágenes Construidas" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ frontend:latest" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ backend:latest" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ nginx:latest" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🔄 Próximos Pasos (Manual)" >> $GITHUB_STEP_SUMMARY
-          echo "1. Conectar a instancias EC2 via SSH" >> $GITHUB_STEP_SUMMARY
-          echo "2. Ejecutar comandos de refresh mostrados arriba" >> $GITHUB_STEP_SUMMARY
-          echo "3. Verificar health check en el ALB" >> $GITHUB_STEP_SUMMARY
