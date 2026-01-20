@@ -1,12 +1,13 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { ApiClient } from "@/lib/api/client";
-import { AnyARecord } from "dns";
+import { useState } from 'react';
+import { ApiClient } from '@/lib/api/client';
+import { AnyARecord } from 'dns';
 
 interface CompleteRequestModalProps {
   requestId: string;
   otherUserName: string;
+  otherUserId: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -18,21 +19,21 @@ export default function CompleteRequestModal({
   onSuccess,
 }: CompleteRequestModalProps) {
   const [rating, setRating] = useState(0);
-  const [review, setReview] = useState("");
+  const [review, setReview] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (rating === 0) {
-      setError("Por favor selecciona una calificación");
+      setError('Por favor selecciona una calificación');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      setError("");
+      setError('');
 
       // CORRECCIÓN: Usar ApiClient en lugar de fetch directo
       const result = (await ApiClient.requests.completeRequest(requestId, {
@@ -41,13 +42,13 @@ export default function CompleteRequestModal({
       })) as any;
 
       if (result.success) {
-        alert("Acuerdo completado exitosamente");
+        alert('Acuerdo completado exitosamente');
         onSuccess();
       } else {
-        setError(result.error || "Error al completar el acuerdo");
+        setError(result.error || 'Error al completar el acuerdo');
       }
     } catch (err) {
-      setError("Error de conexión");
+      setError('Error de conexión');
     } finally {
       setIsSubmitting(false);
     }
@@ -82,17 +83,17 @@ export default function CompleteRequestModal({
                   onClick={() => setRating(star)}
                   className="text-2xl focus:outline-none"
                 >
-                  {star <= rating ? "⭐" : "☆"}
+                  {star <= rating ? '⭐' : '☆'}
                 </button>
               ))}
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {rating === 0 && "Selecciona de 1 a 5 estrellas"}
-              {rating === 1 && "Muy mala experiencia"}
-              {rating === 2 && "Mala experiencia"}
-              {rating === 3 && "Experiencia regular"}
-              {rating === 4 && "Buena experiencia"}
-              {rating === 5 && "Excelente experiencia"}
+              {rating === 0 && 'Selecciona de 1 a 5 estrellas'}
+              {rating === 1 && 'Muy mala experiencia'}
+              {rating === 2 && 'Mala experiencia'}
+              {rating === 3 && 'Experiencia regular'}
+              {rating === 4 && 'Buena experiencia'}
+              {rating === 5 && 'Excelente experiencia'}
             </p>
           </div>
 
@@ -143,7 +144,7 @@ export default function CompleteRequestModal({
               disabled={isSubmitting || rating === 0}
               className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? "Enviando..." : "Enviar Calificación"}
+              {isSubmitting ? 'Enviando...' : 'Enviar Calificación'}
             </button>
           </div>
         </form>
