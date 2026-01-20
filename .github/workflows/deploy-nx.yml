@@ -34,7 +34,7 @@ jobs:
       - name: Get affected projects
         id: affected
         run: |
-          AFFECTED=$(npx nx print-affected --base=HEAD~1 --head=HEAD --select=projects --json || echo "[]")
+          AFFECTED=$(npx nx show projects --affected --base=HEAD~1 --head=HEAD --json || echo "[]")
           echo "affected=$AFFECTED" >> $GITHUB_OUTPUT
           echo "Affected projects: $AFFECTED"
 
