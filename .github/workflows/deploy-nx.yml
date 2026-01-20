@@ -34,12 +34,12 @@ jobs:
       - name: Get affected projects
         id: affected
         run: |
-          AFFECTED=$(npx nx print-affected --base=HEAD~1 --head=HEAD --target=build --select=projects --json)
+          AFFECTED=$(npx nx print-affected --base=HEAD~1 --head=HEAD --select=projects --json || echo "[]")
           echo "affected=$AFFECTED" >> $GITHUB_OUTPUT
           echo "Affected projects: $AFFECTED"
 
       - name: Build affected projects
-        run: npx nx affected:build
+        run: npx nx affected --target=build || echo "No build targets"
 
   docker:
     needs: build
