@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build:
+    name: Identify and Build Affected
     runs-on: ubuntu-latest
     outputs:
       affected: ${{ steps.affected.outputs.affected }}
@@ -25,40 +26,47 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - run: npm install
+      - name: Install dependencies
+        run: npm install
 
       - name: Get affected projects
         id: affected
         run: |
+          # Detecta qué proyectos han cambiado respecto al commit anterior
           AFFECTED=$(npx nx show projects --affected --base=HEAD~1 --head=HEAD --json || echo "[]")
+          echo "Proyectos afectados: $AFFECTED"
           echo "affected=$AFFECTED" >> $GITHUB_OUTPUT
 
-      - name: Build affected projects
-        run: npx nx affected --target=build || echo "No build targets"
+      - name: Compile affected projects
+        run: npx nx affected --target=build || echo "No hay tareas de build para estos proyectos"
 
   docker:
+    name: Build and Push Images
     needs: build
-    if: needs.build.outputs.affected != '[]'
+    if: needs.build.outputs.affected != '[]' && needs.build.outputs.affected != ''
     runs-on: ubuntu-latest
-
     strategy:
+      fail-fast: false
       matrix:
         project: ${{ fromJson(needs.build.outputs.affected) }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/login-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build & Push Docker Image
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
+          # Lógica de contexto corregida para mapear proyectos NX a carpetas físicas
           context: >-
             ${{ 
               matrix.project == 'request-app-frontend' && './frontend' ||
@@ -66,6 +74,10 @@ jobs:
               format('./services/{0}', matrix.project)
             }}
           push: true
-          tags: ghcr.io/jettro12/${{ matrix.project }}:latest
+          # Usamos siempre 'latest' para que la instancia de AWS siempre descargue la versión más reciente
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.project }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Opcional: pasar variables de entorno si el Dockerfile las requiere en build-time
+          build-args: |
+            NODE_ENV=production
