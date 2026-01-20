@@ -1,6 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
+# ------------------------------
+# Dependencies
+# ------------------------------
 /node_modules
 /.pnp
 .pnp.*
@@ -10,45 +10,75 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
+# ------------------------------
+# Build / Output
+# ------------------------------
 /build
+/dist
+/out
+/.next/
+tmp/
+coverage/
 
-# misc
-.DS_Store
-*.pem
+# ------------------------------
+# NX
+# ------------------------------
+.nx/cache
+.nx/workspace-data
+.nx/daemon
+.nx/tmp
 
-# debug
+# ------------------------------
+# Logs & Debug
+# ------------------------------
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
- 
-# vercel
-.vercel
+# ------------------------------
+# OS / Editor
+# ------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
 
-# typescript
+# ------------------------------
+# Environment / Secrets
+# ------------------------------
+.env
+.env.*
+*.pem
+
+# ------------------------------
+# Next.js / TypeScript
+# ------------------------------
 *.tsbuildinfo
 next-env.d.ts
 
+# ------------------------------
+# Prisma
+# ------------------------------
 /src/generated/prisma
 
+# ------------------------------
 # Terraform
+# ------------------------------
 *.tfvars
 *.tfvars.txt
 .terraform/
 *.tfstate
 *.tfstate.backup
-*.exe
 .terraform.lock.hcl
 
+# ------------------------------
+# Vercel
+# ------------------------------
+.vercel
 
-.nx/cache
-.nx/workspace-data
+# ------------------------------
+# Executables
+# ------------------------------
+*.exe
