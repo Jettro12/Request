@@ -1,20 +1,21 @@
-"use client";
+'use client';
 
-import Header from "@/components/Header";
-import { useSession } from "next-auth/react";
-import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
-import { ApiClient, User } from "@/lib/api/client";
-import RequestModal from "@/components/RequestModal";
-import Link from "next/link";
+import Header from '@/components/Header';
+import { useSession } from 'next-auth/react';
+import { useParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { ApiClient, User } from '@/lib/api/client';
+import RequestModal from '@/components/RequestModal';
+import Link from 'next/link';
 
 export default function PublicProfilePage() {
   const { data: session } = useSession();
-  const { id: userId } = useParams();
+  const params = useParams();
+  const userId = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [showRequestModal, setShowRequestModal] = useState(false);
 
   useEffect(() => {
@@ -22,23 +23,25 @@ export default function PublicProfilePage() {
       if (!userId) return;
       try {
         setIsLoading(true);
-        setError("");
+        setError('');
         const result = (await ApiClient.users.getUserProfile(
           userId as string,
         )) as any;
 
         const userData =
-          (result as any).data?.user ||
-          (result as any).user ||
-          (result.id ? result : null);
-        if (result.success && result.data?.user) {
-          setUser(result.data.user);
-          setError("");
+          result?.data?.user ??
+          result?.data ??
+          result?.user ??
+          (result?.id ? result : null);
+
+        if (result?.success && userData?.id) {
+          setUser(userData);
+          setError('');
         } else {
-          setError(result.error || "El perfil que buscas no existe.");
+          setError(result?.error || 'El perfil que buscas no existe.');
         }
       } catch (err) {
-        setError("Error de conexión con el servicio de usuarios");
+        setError('Error de conexión con el servicio de usuarios');
       } finally {
         setIsLoading(false);
       }
@@ -54,10 +57,10 @@ export default function PublicProfilePage() {
   const safeReviewCount = user?.reviewCount || 0;
   const safeSkills = user?.skills || [];
   const safeInterests = user?.interests || [];
-  const safeCareer = user?.career || "Estudiante";
-  const safeSemester = user?.semester || "?";
-  const safeBio = user?.bio || "";
-  const safeName = user?.name || "Usuario";
+  const safeCareer = user?.career || 'Estudiante';
+  const safeSemester = user?.semester || '?';
+  const safeBio = user?.bio || '';
+  const safeName = user?.name || 'Usuario';
 
   return (
     <>
@@ -82,7 +85,7 @@ export default function PublicProfilePage() {
                 <div className="mt-4 md:mt-0 flex items-center space-x-4 bg-gray-50 p-3 rounded-xl border">
                   <div className="text-center px-4">
                     <div className="text-xl font-bold text-gray-900">
-                      ⭐ {safeRating > 0 ? safeRating.toFixed(1) : "N/A"}
+                      ⭐ {safeRating > 0 ? safeRating.toFixed(1) : 'N/A'}
                     </div>
                     <div className="text-xs text-gray-400 uppercase">
                       Rating
@@ -100,7 +103,7 @@ export default function PublicProfilePage() {
                 </div>
               </div>
               <p className="mt-4 text-gray-700 max-w-2xl">
-                {safeBio || "Sin biografía disponible."}
+                {safeBio || 'Sin biografía disponible.'}
               </p>
             </div>
           </div>
@@ -172,7 +175,7 @@ export default function PublicProfilePage() {
           onClose={() => setShowRequestModal(false)}
           onSuccess={() => {
             setShowRequestModal(false);
-            alert("¡Solicitud enviada correctamente!");
+            alert('¡Solicitud enviada correctamente!');
           }}
         />
       )}

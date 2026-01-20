@@ -81,7 +81,7 @@ export async function getUserProfile(req: Request, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({ profile: user });
+    return res.json(user);
   } catch (error) {
     console.error('Error in getUserProfile:', error);
     return res.status(500).json({ error: 'Internal server error' });
