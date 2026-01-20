@@ -1,81 +1,56 @@
-name: Deploy Microservices to AWS
+name: Deploy Microservices with NX
 
 on:
   push:
     branches:
-      - "fix-microservices"
-    paths:
-      - "services/**"
-      - "frontend/**"
-      - "nginx/**"
-      - ".github/workflows/**"
+      - 'fix-microservices'
 
 permissions:
   packages: write
   contents: read
 
 jobs:
-  changes:
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      auth: ${{ steps.filter.outputs.auth }}
-      users: ${{ steps.filter.outputs.users }}
-      posts: ${{ steps.filter.outputs.posts }}
-      requests: ${{ steps.filter.outputs.requests }}
-      notification: ${{ steps.filter.outputs.notification }}
-      profile: ${{ steps.filter.outputs.profile }}
-      ratings: ${{ steps.filter.outputs.ratings }}
-      messages: ${{ steps.filter.outputs.messages }}
-      conversations: ${{ steps.filter.outputs.conversations }}
-      chat: ${{ steps.filter.outputs.chat }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      nginx: ${{ steps.filter.outputs.nginx }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            auth: ['services/auth-service/**']
-            users: ['services/users-service/**']
-            posts: ['services/posts-service/**']
-            requests: ['services/requests-service/**']
-            notification: ['services/notification-service/**']
-            profile: ['services/profile-service/**']
-            ratings: ['services/ratings-service/**']
-            messages: ['services/messages-service/**']
-            conversations: ['services/conversations-service/**']
-            chat: ['services/chat-service/**']
-            frontend: ['frontend/**']
-            nginx: ['nginx/**']
 
-  build-and-push:
-    needs: changes
+    outputs:
+      affected: ${{ steps.affected.outputs.affected }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Get affected projects
+        id: affected
+        run: |
+          AFFECTED=$(npx nx print-affected --target=build --select=projects --json)
+          echo "affected=$AFFECTED" >> $GITHUB_OUTPUT
+          echo "Affected projects: $AFFECTED"
+
+      - name: Build affected projects
+        run: npx nx affected:build
+
+  docker:
+    needs: build
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service:
-          [
-            auth,
-            users,
-            posts,
-            requests,
-            notification,
-            profile,
-            ratings,
-            messages,
-            conversations,
-            chat,
-            frontend,
-            nginx,
-          ]
+        project: ${{ fromJson(needs.build.outputs.affected) }}
+
     steps:
       - name: Checkout
-        if: needs.changes.outputs[matrix.service] == 'true'
         uses: actions/checkout@v4
 
       - name: Login to GHCR
-        if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -83,30 +58,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and Push
-        if: needs.changes.outputs[matrix.service] == 'true'
+      - name: Build & Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: >-
-            ${{ matrix.service == 'frontend' && './frontend' || 
-                matrix.service == 'nginx' && './nginx' || 
-                format('./services/{0}-service', matrix.service) }}
+            ${{ 
+              matrix.project == 'request-app-frontend' && './frontend' ||
+              matrix.project == 'nginx' && './nginx' ||
+              format('./services/{0}', matrix.project)
+            }}
           push: true
-          # IMPORTANTE: Sincronizar nombres con docker-compose.prod.yml
-          tags: |
-            ghcr.io/jettro12/${{ 
-              matrix.service == 'frontend' && 'frontend' || 
-              matrix.service == 'nginx' && 'nginx' || 
-              format('{0}-service', matrix.service) 
-            }}:latest
+          tags: ghcr.io/jettro12/${{ matrix.project }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: [build-and-push]
+    needs: docker
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS Credentials
@@ -114,6 +83,5 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          # Usar token de sesión solo si es necesario (cuentas temporales/Academy)
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1

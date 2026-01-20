@@ -1,25 +1,25 @@
-import bcrypt from "bcryptjs";
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import { prisma } from "./prisma";
-import { Prisma } from "@prisma/client";
+import bcrypt from 'bcryptjs';
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { prisma } from './prisma';
+import { Prisma } from '@prisma/client';
 
 dotenv.config();
 
-const PORT = parseInt(process.env.PORT || "4004");
+const PORT = parseInt(process.env.PORT || '4004');
 const app = express();
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN?.split(",") || [
-      "http://localhost:3000",
-      "http://localhost:8080",
-      "http://frontend:3000",
+    origin: process.env.CORS_ORIGIN?.split(',') || [
+      'http://localhost:3000',
+      'http://localhost:8080',
+      'http://frontend:3000',
     ],
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
 app.use(express.json());
@@ -27,7 +27,7 @@ app.use(express.json());
 // ==========================================
 // REGISTER ROUTE (OPTIMIZADA PARA DB COMPARTIDA)
 // ==========================================
-app.post("/register", async (req, res) => {
+app.post('/register', async (req, res) => {
   const { name, email, password, career, semester, bio } = req.body;
 
   try {
@@ -39,8 +39,8 @@ app.post("/register", async (req, res) => {
         password: hashed,
         career,
         semester: semester ? Number(semester) : null,
-        bio: bio || "",
-        role: "user",
+        bio: bio || '',
+        role: 'user',
         // skills e interests nacen vacíos aquí como pediste
       },
     });
@@ -48,34 +48,34 @@ app.post("/register", async (req, res) => {
     res.json({ user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === "P2002") {
-        return res.status(409).json({ error: "El email ya está registrado" });
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'El email ya está registrado' });
       }
     }
-    console.error("Error en register:", error);
-    return res.status(500).json({ error: "Error interno del servidor" });
+    console.error('Error en register:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
 // ==========================================
 // LOGIN ROUTE
 // ==========================================
-app.post("/login", async (req, res) => {
+app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ error: "missing" });
+    return res.status(400).json({ error: 'missing' });
   }
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ error: "invalid" });
+      return res.status(401).json({ error: 'invalid' });
     }
 
-    const isValid = await bcrypt.compare(password, user.password || "");
+    const isValid = await bcrypt.compare(password, user.password || '');
     if (!isValid) {
-      return res.status(401).json({ error: "invalid" });
+      return res.status(401).json({ error: 'invalid' });
     }
 
     res.json({
@@ -83,26 +83,30 @@ app.post("/login", async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        career: user.career, // Opcional: devolver más datos al login
+        career: user.career,
+        semester: user.semester,
+        bio: user.bio,
+        rating: user.rating || 0,
+        reviewCount: user.reviewCount || 0, // Opcional: devolver más datos al login
       },
     });
   } catch (error) {
-    console.error("Error en login:", error);
-    return res.status(500).json({ error: "Error interno del servidor" });
+    console.error('Error en login:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-app.post("/logout", async (req, res) => {
-  res.json({ success: true, message: "Logged out successfully" });
+app.post('/logout', async (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
 });
 
-app.get("/health", (_req, res) => {
-  const dbState = prisma ? "ok" : "unknown";
-  res.json({ status: "ok", service: "auth-service", db: dbState });
+app.get('/health', (_req, res) => {
+  const dbState = prisma ? 'ok' : 'unknown';
+  res.json({ status: 'ok', service: 'auth-service', db: dbState });
 });
 
 async function start() {
-  app.listen(PORT, "0.0.0.0", () =>
+  app.listen(PORT, '0.0.0.0', () =>
     console.log(`Auth service listening on ${PORT}`),
   );
 
@@ -112,7 +116,7 @@ async function start() {
   while (dbAttempt < maxDbRetries) {
     try {
       await prisma.$connect();
-      console.log("Auth prisma connected");
+      console.log('Auth prisma connected');
       break;
     } catch (err) {
       dbAttempt++;
@@ -123,6 +127,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  console.error("Failed to start auth-service", err);
+  console.error('Failed to start auth-service', err);
   process.exit(1);
 });

@@ -48,3 +48,7 @@ next-env.d.ts
 *.tfstate.backup
 *.exe
 .terraform.lock.hcl
+
+
+.nx/cache
+.nx/workspace-data

@@ -1,0 +1,143 @@
+[33madba022[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfix-microservices[m[33m, [m[1;31morigin/fix-microservices[m[33m)[m ratings3
+[33mcc56d2a[m ratings2
+[33mdf98d6d[m ratings1
+[33mf1b72af[m ratings
+[33ma232ef6[m messages in database
+[33m3ffb460[m messages and chat/page update
+[33m0cfbf6f[m prisma messages update
+[33m10cdede[m requests/page update
+[33m41f0721[m [userid]/page update
+[33m730c41a[m client.ts userid update
+[33m113e70e[m requets service VALID_TYPES
+[33m4258c11[m requets service sendToKafka -> sendToKafkaSafe
+[33m3282878[m requets service update2
+[33m709dd85[m requets service update1
+[33ma9d181c[m requets service update
+[33mffc1df3[m chat update otheruser and sessionuser
+[33m1bec640[m Frontend update
+[33m94f4bc5[m workflow
+[33m5f596a9[m workflow
+[33m1bb4bc4[m client.ts/chat update
+[33m1d0d330[m client.ts/dashboard update
+[33m51a40a6[m client.ts/dashboard update
+[33m114cf3a[m profile/auth-service update
+[33m02bd7b4[m index messages update1
+[33m474b7dd[m index messages update
+[33ma556a50[m requests/page update1
+[33ma603000[m requests/page update
+[33m67e86fb[m client.ts update3
+[33me4b1e00[m client.ts update2
+[33meaa827f[m client.ts update1
+[33mf8b5b74[m client.ts update
+[33m2191148[m DB and dashboard and Edit profile update
+[33m4df0585[m DB and dashboard and requests-controller update
+[33m49baea0[m DB and dashboard update
+[33m167cd5f[m register, login, profile and search update
+[33mddb957a[m edit register 2
+[33mbbf19de[m edit registe
+[33ma26efc8[m edir profile
+[33m98595f7[m posts update
+[33md7e6c81[m chat loadconversations
+[33m8b45901[m client.ts chat update
+[33m75ff9a9[m frontend pages update
+[33ma717fc2[m version estable
+[33m2afd54a[m client.ts chat
+[33m5db8083[m client.ts update profile
+[33m8e77ac7[m dashboard, profile, requests front update7
+[33me60e844[m dashboard, profile, requests front update6
+[33m689696a[m dashboard, profile, requests front update5
+[33m9d9340d[m dashboard, profile, requests front update5
+[33me1489cd[m dashboard, profile, requests front updates5
+[33m7f1dd15[m dashboard, profile, requests front updates2
+[33mb539f4e[m dashboard, profile, requests front updates1
+[33mfeefef9[m dashboard, profile, requests front updates1
+[33m8a717b4[m dashboard, profile, requests front updates
+[33m2f93f20[m api.ts update, nginx
+[33meba9edf[m api.ts update, nginx
+[33md4c80e9[m api.ts update, auth
+[33mc0512ac[m api.ts update, requests1
+[33m700c023[m api.ts update, requests
+[33m5aad203[m api.ts update, search users
+[33m0b95709[m lib/api/client.ts   updates
+[33md6a7840[m lib/api/client.ts and /src/app/chat/page.tsx  updates
+[33m2600f94[m lib/api/client.ts and /src/app/chat/[userId]/page.tsx  updates
+[33madde50a[m lib/api/client.ts  updates
+[33mc385707[m frontend apiclient-nginx updates
+[33mb7d243c[m rabbitmqtt credentials2
+[33mf43d927[m rabbitmqtt credentials1
+[33m95533fa[m rabbitmqtt credentials
+[33mdd9896d[m nginx fix2
+[33mf2a7308[m nginx fix
+[33m8774b7c[m fix: services index
+[33m7392a05[m fix: nginx profile route
+[33mba45249[m fix: use result.data.posts instead of result.posts2
+[33m79815bd[m fix: use result.data.posts instead of result.posts
+[33m4b4dcf0[m updating docker-compose.prod, change kafka, zookeper, y rabbitmqtt
+[33mab78108[m updating terraform and nginx8
+[33m2d21549[m updating terraform and nginx7
+[33m96b47db[m updating terraform and nginx6
+[33m141f2ab[m updating terraform and nginx5
+[33m734864c[m updating terraform and nginx4
+[33m60add8d[m updating terraform and nginx3
+[33m901fcb3[m updating terraform and nginx2
+[33m5c4c172[m updating terraform and nginx1
+[33m0c867be[m updating terraform and nginx
+[33me6b81b8[m change compose.prod y .env
+[33m3445c59[m change nginx and compose.prod
+[33m3b6b901[m workflow3
+[33m2222d0d[m workflow
+[33m409070f[m nginx Dockerfile
+[33mb1a968b[m main.tf, nginx, supabase fix1
+[33m50ef9bf[m main.tf, nginx, supabase fix
+[33md8b0e16[m Supabase fix5
+[33m1b8f92d[m Supabase fix3
+[33mecfae69[m Update schema.prisma
+[33m1278c39[m Update NEXTAUTH_URL in production Docker Compose
+[33m3ec9822[m Fix: Supabase
+[33m7290b3e[m Fix: Supabase
+[33m3361293[m Fix: Supabase
+[33m7a50f37[m Fix: Add role field to User schema to fix build error
+[33m07e55ae[m Fix: Add role field to User schema to fix build error
+[33m243bd1a[m Fix: Add common BD for microservices
+[33m8d88d5f[m[33m ([m[1;31morigin/QA[m[33m)[m Fix: Add missing columns to Users DB and fix Post routes
+[33m6b963c9[m Fix: Add missing fields to User schema and secure Post routes
+[33me33fa71[m Fix: Remove path prefixes from backend services to match proxy
+[33m2ecba85[m fix(users-post): index
+[33me93027c[m fix(conversations): index
+[33m9c0465f[m fix(notifications): notificationcontroller
+[33m345983d[m fix(request): requestcontroller
+[33m5d1c6b8[m fix(post): postcontroller cathc errors
+[33m84a488f[m fix(auth): handle nullable password on login
+[33m83aa011[m Fix: Add build step to Dockerfiles to create dist folder
+[33m72a4400[m Feat: Auto-migration on startup for all services
+[33m07bb35c[m Fix: Usar URLs internas de Docker para NextAuth
+[33mdbaf639[m Fix: Apuntar registro a /auth/register
+[33m6b8b8b3[m Fix: Mapear ruta /auth a /login
+[33mc077b0a[m Configurar proxy reverso en next.config.mjs
+[33m046f83b[m Corregir rutas para apuntar a services/ y frontend/
+[33m7c2f0b0[m Corregir rutas para apuntar a services/ y frontend/
+[33m1948720[m Infraestructura corregida y limpia
+[33m8a0e51c[m Infraestructura corregida y limpia
+[33m534911d[m Ci/Cd tres instancias
+[33m8b8969a[m Ci/Cd infra1
+[33ma652ea9[m Ci/Cd infra
+[33m556ecbe[m Ci/Cd frontend1
+[33mec73895[m Ci/Cd frontend
+[33m64019db[m Ci/Cd Aws
+[33mc863310[m Ci/Cd Aws
+[33m5cf0740[m Ci/Cd Aws
+[33m6281ef0[m Ci/Cd Aws
+[33m098b5c9[m Ci/Cd Aws
+[33m229b487[m Ci/Cd Aws
+[33m32ae3a5[m distribución de microservicios en instancias
+[33m49af979[m Refactor: Reestructuración de proyecto para monorepo con Turborepo
+[33mfc388ab[m WIP: Debugging CORS y puertos docker. Pendiente validar orden de middlewares
+[33m44ddccb[m[33m ([m[1;32mfeature/monorepo[m[33m)[m First test with notifications
+[33m2b42f5f[m chore: add/update docker-compose for monorepo
+[33m9ad73f4[m chore: move service-requests -> services/requests (monorepo)
+[33mc922a66[m[33m ([m[1;31morigin/master[m[33m, [m[1;32mmaster[m[33m)[m Update request sistem close a work and rating
+[33m1be125b[m Updatin dashboard, and register users, testing messages system
+[33m8215734[m Agregación de prisma para conexión de base de datos a supabase, login, register, y profile funcionando
+[33m483b4e7[m Add .gitattributes for consistent line endings
+[33m611209c[m 🚀 Initial commit: Basic structure with dashboard, profile, and search
+[33m8adb9fa[m Initial commit from Create Next App

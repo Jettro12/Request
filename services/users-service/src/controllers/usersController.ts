@@ -1,10 +1,12 @@
-import { Request, Response } from "express";
-import { prisma } from "../prisma";
+import { Request, Response } from 'express';
+import { prisma } from '../prisma';
 
-// GET /search - buscar usuarios
+/* =====================================================
+   GET /search - Buscar usuarios
+===================================================== */
 export async function searchUsers(req: Request, res: Response) {
   try {
-    const { query, career, page = "1", limit = "20" } = req.query;
+    const { query, page = '1', limit = '20' } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -12,10 +14,10 @@ export async function searchUsers(req: Request, res: Response) {
 
     const where: any = {};
 
-    if (query && query !== "undefined") {
+    if (query && query !== 'undefined') {
       where.OR = [
-        { name: { contains: query as string, mode: "insensitive" } },
-        { email: { contains: query as string, mode: "insensitive" } },
+        { name: { contains: query as string, mode: 'insensitive' } },
+        { email: { contains: query as string, mode: 'insensitive' } },
       ];
     }
 
@@ -31,9 +33,8 @@ export async function searchUsers(req: Request, res: Response) {
           role: true,
           image: true,
           createdAt: true,
-          updatedAt: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.user.count({ where }),
     ]);
@@ -46,12 +47,14 @@ export async function searchUsers(req: Request, res: Response) {
       totalPages: Math.ceil(total / limitNum),
     });
   } catch (error) {
-    console.error("Error in searchUsers:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error('Error in searchUsers:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// GET /:id - obtener usuario por ID
+/* =====================================================
+   GET /:id - Obtener perfil completo
+===================================================== */
 export async function getUserProfile(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -64,45 +67,53 @@ export async function getUserProfile(req: Request, res: Response) {
         email: true,
         role: true,
         image: true,
+        bio: true,
+        skills: true,
+        interests: true,
+        career: true,
+        semester: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({ user });
+    return res.json({ profile: user });
   } catch (error) {
-    console.error("Error in getUserProfile:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error('Error in getUserProfile:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// GET /career/:career - usuarios por carrera (simplificado)
+/* =====================================================
+   GET /career/:career - Usuarios por carrera (opcional)
+===================================================== */
 export async function getUsersByCareer(req: Request, res: Response) {
   try {
-    // Como tu schema no tiene campo 'career', retornamos vacío o todos los usuarios
-    const page = parseInt((req.query.page as string) || "1");
-    const limit = parseInt((req.query.limit as string) || "20");
+    const { career } = req.params;
+    const page = parseInt((req.query.page as string) || '1');
+    const limit = parseInt((req.query.limit as string) || '20');
     const skip = (page - 1) * limit;
+
+    const where = career ? { career } : {};
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
+        where,
         skip,
         take: limit,
         select: {
           id: true,
           name: true,
           email: true,
-          role: true,
+          career: true,
           image: true,
-          createdAt: true,
         },
-        orderBy: { createdAt: "desc" },
       }),
-      prisma.user.count(),
+      prisma.user.count({ where }),
     ]);
 
     return res.json({
@@ -113,27 +124,28 @@ export async function getUsersByCareer(req: Request, res: Response) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error("Error in getUsersByCareer:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error('Error in getUsersByCareer:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// POST /profile - crear perfil
+/* =====================================================
+   POST /profile - Crear perfil (solo si no existe)
+===================================================== */
 export async function createProfile(req: Request, res: Response) {
   try {
     const { userId, name, email, image } = req.body;
 
     if (!userId || !name || !email) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Verificar si el usuario ya existe
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: "User already exists" });
+      return res.status(400).json({ error: 'User already exists' });
     }
 
     const user = await prisma.user.create({
@@ -142,64 +154,71 @@ export async function createProfile(req: Request, res: Response) {
         name,
         email,
         image: image || null,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        image: true,
-        createdAt: true,
+        bio: '',
+        skills: [],
+        interests: [],
       },
     });
 
     return res.status(201).json({
-      message: "Profile created successfully",
+      message: 'Profile created successfully',
       user,
     });
   } catch (error) {
-    console.error("Error in createProfile:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error('Error in createProfile:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// PUT /:id/profile - actualizar perfil
+/* =====================================================
+   PUT /:id/profile - Actualizar perfil completo
+===================================================== */
 export async function updateProfile(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { name, image } = req.body;
+    const { name, image, bio, skills, interests, career, semester } = req.body;
 
-    // Verificar que el usuario existe
     const existingUser = await prisma.user.findUnique({
       where: { id },
     });
 
     if (!existingUser) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: 'User not found' });
     }
 
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        name: name || existingUser.name,
-        image: image || existingUser.image,
+        name: name ?? existingUser.name,
+        image: image ?? existingUser.image,
+        bio: bio ?? existingUser.bio,
+        skills: Array.isArray(skills) ? skills : existingUser.skills,
+        interests: Array.isArray(interests)
+          ? interests
+          : existingUser.interests,
+        career: career ?? existingUser.career,
+        semester: semester ?? existingUser.semester,
       },
       select: {
         id: true,
         name: true,
         email: true,
-        role: true,
+        bio: true,
+        skills: true,
+        interests: true,
+        career: true,
+        semester: true,
         image: true,
         updatedAt: true,
       },
     });
 
     return res.json({
-      message: "Profile updated successfully",
-      user: updatedUser,
+      message: 'Profile updated successfully',
+      profile: updatedUser,
     });
   } catch (error) {
-    console.error("Error in updateProfile:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error('Error in updateProfile:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
