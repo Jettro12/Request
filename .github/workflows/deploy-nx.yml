@@ -43,7 +43,9 @@ jobs:
 
   docker:
     needs: build
+    if: needs.build.outputs.affected != '[]'
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         project: ${{ fromJson(needs.build.outputs.affected) }}
@@ -81,6 +83,7 @@ jobs:
   deploy:
     needs: docker
     runs-on: ubuntu-latest
+
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -89,3 +92,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
+
+      - name: Deploy to AWS
+        run: |
+          echo "Aquí va tu comando real de desp
