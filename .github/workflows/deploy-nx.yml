@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -32,7 +34,7 @@ jobs:
       - name: Get affected projects
         id: affected
         run: |
-          AFFECTED=$(npx nx print-affected --target=build --select=projects --json)
+          AFFECTED=$(npx nx print-affected --base=HEAD~1 --head=HEAD --target=build --select=projects --json)
           echo "affected=$AFFECTED" >> $GITHUB_OUTPUT
           echo "Affected projects: $AFFECTED"
 
@@ -49,6 +51,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Login to GHCR
         uses: docker/login-action@v3
