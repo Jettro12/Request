@@ -211,14 +211,34 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  // Método especial para subida de archivos (FormData)
+  /* -------------------------------
+   UPLOAD METHOD (FIXED)
+------------------------------- */
   static async upload<T>(url: string, formData: FormData): Promise<T> {
     const session: any = await getSession();
     const token = session?.accessToken || session?.user?.accessToken;
 
-    const headers: Record<string, string> = {
-      ...(token && { Authorization: `Bearer ${token}` }),
-    };
+    // Headers para FormData - DEJAR QUE EL BROWSER ESTABLEZCA Content-Type
+    const headers: HeadersInit = {};
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Debug: ver qué se está enviando
+    console.log('=== UPLOAD DEBUG ===');
+    console.log('URL:', url);
+    console.log('Headers:', headers);
+
+    // SOLUCIÓN CORREGIDA: Usar forEach en lugar de entries() para iterar
+    formData.forEach((value, key) => {
+      console.log(
+        `FormData[${key}]:`,
+        value instanceof File
+          ? `${(value as File).name} (${(value as File).size} bytes, ${(value as File).type})`
+          : value,
+      );
+    });
 
     const response = await fetch(url, {
       method: 'POST',
@@ -227,6 +247,46 @@ export class ApiClient {
       credentials: 'include',
     });
 
+    console.log('Response status:', response.status);
+    console.log(
+      'Response headers:',
+      Object.fromEntries(response.headers.entries()),
+    );
+
+    const responseText = await response.text();
+    console.log('Response text:', responseText);
+
+    let data: any;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+      console.error('JSON parse error:', error, 'Text:', responseText);
+      throw new ApiError(
+        'Invalid JSON response from server',
+        response.status,
+        responseText,
+      );
+    }
+
+    if (!response.ok) {
+      throw new ApiError(
+        data?.message || data?.error || `Upload failed (${response.status})`,
+        response.status,
+        data,
+      );
+    }
+
+    return data;
+  }
+
+  /* -------------------------------
+     MÉTODO DELETE (faltaba)
+  -------------------------------- */
+  static async delete<T>(url: string, body?: any): Promise<T> {
+    const response = await this.fetchWithAuth(url, {
+      method: 'DELETE',
+      body: JSON.stringify(body),
+    });
     return this.handleResponse<T>(response);
   }
 
@@ -403,17 +463,6 @@ export class ApiClient {
 
     createPost: (data: any) => ApiClient.post(getApiUrl('posts'), data),
   };
-
-  /* -------------------------------
-     MÉTODO DELETE (faltaba)
-  -------------------------------- */
-  static async delete<T>(url: string, body?: any): Promise<T> {
-    const response = await this.fetchWithAuth(url, {
-      method: 'DELETE',
-      body: JSON.stringify(body),
-    });
-    return this.handleResponse<T>(response);
-  }
 }
 
 export default ApiClient;
