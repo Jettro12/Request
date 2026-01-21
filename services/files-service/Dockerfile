@@ -1,19 +1,12 @@
-
 FROM node:18-alpine
-
 WORKDIR /app
 
-# Instalar dependencias de compilación si es necesario
-RUN apk add --no-cache python3 make g++
-
-# Copiar package.json
-COPY package*.json ./
-
-# Instalar dependencias
+# Copiar package.json e instalar dependencias
+COPY package.json ./
 RUN npm install --only=production
 
-# Copiar código fuente
-COPY src/ src/
+# Copiar código
+COPY index.js ./
 
 # Exponer puerto
 EXPOSE 4011
@@ -22,5 +15,4 @@ EXPOSE 4011
 USER node
 
 # Comando de inicio
-CMD ["node", "src/index.js"]
- 
+CMD ["node", "index.js"]
