@@ -1,9 +1,16 @@
 version: '3.9'
 
+# ===============================
+# REDES - CORRECCIÓN CRÍTICA
+# ===============================
 networks:
   microservices-net:
-    driver: bridge
+    external: true
+    name: app_microservices-net # Usa la red existente creada por Docker Compose
 
+# ===============================
+# SERVICIOS
+# ===============================
 services:
   # ===============================
   # INFRAESTRUCTURA
@@ -71,7 +78,7 @@ services:
       - microservices-net
 
   # ===============================
-  # NUEVO: MONGODB PARA FILES-SERVICE
+  # MONGODB PARA FILES-SERVICE
   # ===============================
   mongodb-files:
     image: mongo:6
@@ -235,7 +242,7 @@ services:
     restart: always
     env_file: .env
     expose:
-      - '4010' # YA EXISTE - NO CAMBIAR
+      - '4010'
     depends_on:
       kafka:
         condition: service_healthy
@@ -243,7 +250,7 @@ services:
       - microservices-net
 
   # ===============================
-  # NUEVO: FILES SERVICE (puerto 4011)
+  # FILES SERVICE (puerto 4011)
   # ===============================
   files-service:
     image: ghcr.io/jettro12/files-service:latest
@@ -251,14 +258,14 @@ services:
     restart: always
     env_file: .env
     environment:
-      PORT: 4011 # Puerto diferente al chat-service
+      PORT: 4011
       MONGODB_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb-files:27017/files_db?authSource=admin
       BASE_URL: http://localhost:4011
       JWT_SECRET: ${JWT_SECRET}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
       ALLOWED_MIME_TYPES: ${ALLOWED_MIME_TYPES:-image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,application/pdf}
     expose:
-      - '4011' # Puerto diferente al chat-service
+      - '4011'
     depends_on:
       mongodb-files:
         condition: service_healthy
