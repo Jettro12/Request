@@ -81,10 +81,20 @@ export interface FileData {
   metadata?: any;
 }
 
+// Interfaz de respuesta mejorada para compatibilidad
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+  message?: string; // Para compatibilidad con files-service
+  [key: string]: any; // Propiedades adicionales
+}
+
+// Interfaz específica para respuesta de upload de files-service
+export interface FileUploadResponse {
+  success: boolean;
+  message: string;
+  file: FileData;
 }
 
 // Nueva interfaz para la respuesta de searchUsers
@@ -212,7 +222,7 @@ export class ApiClient {
   }
 
   /* -------------------------------
-   UPLOAD METHOD (FIXED)
+   UPLOAD METHOD (FIXED & IMPROVED)
 ------------------------------- */
   static async upload<T>(url: string, formData: FormData): Promise<T> {
     const session: any = await getSession();
@@ -228,7 +238,6 @@ export class ApiClient {
     // Debug: ver qué se está enviando
     console.log('=== UPLOAD DEBUG ===');
     console.log('URL:', url);
-    console.log('Headers:', headers);
 
     // SOLUCIÓN CORREGIDA: Usar forEach en lugar de entries() para iterar
     formData.forEach((value, key) => {
@@ -240,7 +249,11 @@ export class ApiClient {
       );
     });
 
-    const response = await fetch(url, {
+    // Usar URL completa si es relativa
+    const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
+    console.log('Full URL:', fullUrl);
+
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers,
       body: formData,
@@ -268,15 +281,19 @@ export class ApiClient {
       );
     }
 
-    if (!response.ok) {
-      throw new ApiError(
-        data?.message || data?.error || `Upload failed (${response.status})`,
-        response.status,
-        data,
-      );
+    // VERIFICACIÓN MEJORADA: Aceptar 201 Created como éxito
+    if (response.status === 201 || response.ok) {
+      console.log('Upload successful:', data);
+      return data as T;
     }
 
-    return data;
+    // Si llega aquí, es un error
+    console.error('Upload failed:', data);
+    throw new ApiError(
+      data?.message || data?.error || `Upload failed (${response.status})`,
+      response.status,
+      data,
+    );
   }
 
   /* -------------------------------
@@ -351,10 +368,10 @@ export class ApiClient {
   };
 
   /* =====================================================
-     NUEVO: FILES SERVICE
+     NUEVO: FILES SERVICE (ACTUALIZADO)
   ===================================================== */
   static files = {
-    // Subir archivo
+    // Subir archivo - MANEJA LA RESPUESTA ESPECÍFICA DEL FILES-SERVICE
     uploadFile: (
       file: File,
       userId: string,
@@ -365,10 +382,33 @@ export class ApiClient {
       formData.append('userId', userId);
       formData.append('type', type);
 
-      return ApiClient.upload<ApiResponse<{ file: FileData }>>(
-        '/api/files/upload', // Usa la ruta del proxy nginx
-        formData,
-      );
+      console.log('📤 Preparing file upload...');
+      console.log('File:', file.name, file.size, file.type);
+      console.log('User ID:', userId);
+      console.log('Type:', type);
+
+      // El files-service devuelve: {success, message, file}
+      // Lo adaptamos a: {success, data: {file: ...}}
+      return ApiClient.upload<FileUploadResponse>('/api/files/upload', formData)
+        .then((response) => {
+          console.log('📥 Raw response from files-service:', response);
+
+          // Adaptar la respuesta al formato ApiResponse esperado
+          const adaptedResponse: ApiResponse<{ file: FileData }> = {
+            success: response.success !== undefined ? response.success : true,
+            data: response.file ? { file: response.file } : undefined,
+            message: response.message,
+            // Mantener la respuesta original como propiedad adicional
+            originalResponse: response,
+          };
+
+          console.log('✅ Adapted response:', adaptedResponse);
+          return adaptedResponse;
+        })
+        .catch((error) => {
+          console.error('❌ Error in uploadFile:', error);
+          throw error;
+        });
     },
 
     // Obtener archivos del usuario
