@@ -1,60 +1,97 @@
-"use client";
+'use client';
 
-import Header from "@/components/Header";
-import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import ApiClient, { type Post, type User } from "@/lib/api/client";
+import Header from '@/components/Header';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import ApiClient, { type Post, type User } from '@/lib/api/client';
 
 const careerSpaces = [
-  { name: "Todos los espacios", emoji: "🌍" },
-  { name: "Ingeniería en Sistemas", emoji: "💻" },
-  { name: "Psicología", emoji: "🧠" },
-  { name: "Administración", emoji: "📊" },
-  { name: "Medicina", emoji: "⚕️" },
-  { name: "Derecho", emoji: "⚖️" },
-  { name: "Diseño Gráfico", emoji: "🎨" },
-  { name: "Artes", emoji: "🎭" },
+  { name: 'Todos los espacios', emoji: '🌍' },
+  { name: 'Ingeniería en Sistemas', emoji: '💻' },
+  { name: 'Psicología', emoji: '🧠' },
+  { name: 'Administración', emoji: '📊' },
+  { name: 'Medicina', emoji: '⚕️' },
+  { name: 'Derecho', emoji: '⚖️' },
+  { name: 'Diseño Gráfico', emoji: '🎨' },
+  { name: 'Artes', emoji: '🎭' },
 ];
+
+// Interfaz para estandarizar la respuesta de usuarios
+interface ApiUser {
+  id: string;
+  name?: string;
+  career?: string;
+  careerSpace?: string;
+  semester?: number;
+  email?: string;
+  // Para manejar diferentes estructuras de API
+  profile?: {
+    career?: string;
+    name?: string;
+    semester?: number;
+  };
+}
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [view, setView] = useState<"posts" | "people">("posts");
-  const [selectedCareer, setSelectedCareer] = useState("Todos los espacios");
+  const [view, setView] = useState<'posts' | 'people'>('posts');
+  const [selectedCareer, setSelectedCareer] = useState('Todos los espacios');
   const [posts, setPosts] = useState<Post[]>([]);
-  const [people, setPeople] = useState<User[]>([]);
+  const [people, setPeople] = useState<ApiUser[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Helper mejorado para limpiar IDs y mostrar nombres reales
   const formatName = (name: string | null | undefined, authorId?: string) => {
-    // Si el post es del usuario actual, usamos el nombre de la sesión para asegurar frescura
     if (authorId === session?.user?.id && session?.user?.name)
       return session.user.name;
-
-    if (!name) return "Usuario de Request";
-    if (name.startsWith("cmk") && name.length > 15)
-      return "Compañero Universitario";
+    if (!name) return 'Usuario de Request';
+    if (name.startsWith('cmk') && name.length > 15)
+      return 'Compañero Universitario';
     return name;
   };
 
+  // Helper para extraer la carrera de cualquier estructura
+  const getCareer = (user: ApiUser): string => {
+    // Intenta diferentes estructuras de datos
+    return (
+      user.career ||
+      user.careerSpace ||
+      user.profile?.career ||
+      'Carrera no especificada'
+    );
+  };
+
+  // Helper para extraer el nombre de cualquier estructura
+  const getName = (user: ApiUser): string => {
+    return user.name || user.profile?.name || 'Usuario';
+  };
+
+  // Helper para extraer el semestre de cualquier estructura
+  const getSemester = (user: ApiUser): string => {
+    const semester = user.semester || user.profile?.semester;
+    return semester ? `${semester}° Semestre` : '';
+  };
+
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
+    if (status === 'unauthenticated') router.push('/login');
   }, [status, router]);
 
   useEffect(() => {
     const loadContent = async () => {
-      if (status !== "authenticated") return;
+      if (status !== 'authenticated') return;
 
       setLoading(true);
       try {
-        if (view === "posts") {
+        if (view === 'posts') {
           const params =
-            selectedCareer !== "Todos los espacios"
+            selectedCareer !== 'Todos los espacios'
               ? { careerSpace: selectedCareer }
               : {};
           const res = await ApiClient.posts.getPosts(params);
+          console.log('Posts API response:', res); // Para debug
           const data =
             (res as any).data?.posts ||
             (res as any).posts ||
@@ -62,27 +99,45 @@ export default function Dashboard() {
           setPosts(data);
         } else {
           const params =
-            selectedCareer !== "Todos los espacios"
+            selectedCareer !== 'Todos los espacios'
               ? { career: selectedCareer }
               : {};
           const res = await ApiClient.users.searchUsers(params);
-          const data =
-            (res as any).data?.users ||
-            (res as any).users ||
-            (Array.isArray(res) ? res : []);
+          console.log('Users API response:', res); // Para debug
+
+          // Manejo flexible de la respuesta
+          let data: ApiUser[] = [];
+
+          if (Array.isArray(res)) {
+            data = res;
+          } else if ((res as any)?.data?.users) {
+            data = (res as any).data.users;
+          } else if ((res as any)?.users) {
+            data = (res as any).users;
+          } else if ((res as any)?.data) {
+            // Si data es directamente un array
+            data = Array.isArray((res as any).data) ? (res as any).data : [];
+          }
+
           setPeople(data);
+
+          // Debug: verificar la estructura de cada usuario
+          if (data.length > 0) {
+            console.log('Primer usuario en data:', data[0]);
+            console.log('Carrera del primer usuario:', getCareer(data[0]));
+          }
         }
       } catch (err) {
-        console.error("Error cargando dashboard:", err);
+        console.error('Error cargando dashboard:', err);
       } finally {
         setLoading(false);
       }
     };
 
     loadContent();
-  }, [view, selectedCareer, status === "authenticated"]);
+  }, [view, selectedCareer, status === 'authenticated']);
 
-  if (status === "loading")
+  if (status === 'loading')
     return (
       <div className="p-20 text-center font-bold text-gray-900 uppercase tracking-widest">
         Cargando aplicación...
@@ -101,11 +156,11 @@ export default function Dashboard() {
               </h2>
               <nav className="space-y-2">
                 <button
-                  onClick={() => setView("posts")}
+                  onClick={() => setView('posts')}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                    view === "posts"
-                      ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-100"
-                      : "text-gray-600 hover:bg-gray-100"
+                    view === 'posts'
+                      ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-100'
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   <span className="text-lg">📝</span>
@@ -114,11 +169,11 @@ export default function Dashboard() {
                   </span>
                 </button>
                 <button
-                  onClick={() => setView("people")}
+                  onClick={() => setView('people')}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                    view === "people"
-                      ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-100"
-                      : "text-gray-600 hover:bg-gray-100"
+                    view === 'people'
+                      ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-100'
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   <span className="text-lg">🤝</span>
@@ -140,8 +195,8 @@ export default function Dashboard() {
                     onClick={() => setSelectedCareer(c.name)}
                     className={`w-full text-left px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
                       selectedCareer === c.name
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-gray-500 hover:bg-gray-50"
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-500 hover:bg-gray-50'
                     }`}
                   >
                     {c.emoji} {c.name}
@@ -165,7 +220,7 @@ export default function Dashboard() {
                   <div key={i} className="h-48 bg-gray-200 rounded-[2rem]" />
                 ))}
               </div>
-            ) : view === "posts" ? (
+            ) : view === 'posts' ? (
               posts.length > 0 ? (
                 posts.map((post) => (
                   <div
@@ -201,7 +256,8 @@ export default function Dashboard() {
                             {formatName(post.author?.name, post.author?.id)}
                           </span>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                            {post.author?.career || "Estudiante"}
+                            {/* Usa el helper para la carrera también en posts */}
+                            {getCareer(post.author as ApiUser) || 'Estudiante'}
                           </p>
                         </div>
                       </Link>
@@ -220,27 +276,46 @@ export default function Dashboard() {
               )
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
-                {people.map((u) => (
-                  <div
-                    key={u.id}
-                    className="bg-white p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-xl hover:border-blue-200 transition-all"
-                  >
-                    <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-blue-100">
-                      {formatName(u.name, u.id).charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <Link
-                        href={`/profile/${u.id}`}
-                        className="font-black text-gray-900 hover:text-blue-600 text-lg block leading-tight transition-colors tracking-tighter"
+                {people.length > 0 ? (
+                  people.map((user) => {
+                    const userCareer = getCareer(user);
+                    const userName = getName(user);
+                    const userSemester = getSemester(user);
+
+                    return (
+                      <div
+                        key={user.id}
+                        className="bg-white p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-xl hover:border-blue-200 transition-all"
                       >
-                        {formatName(u.name, u.id)}
-                      </Link>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.1em] mt-1">
-                        {u.career || "Carrera no especificada"}
-                      </p>
-                    </div>
+                        <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-blue-100">
+                          {userName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                          <Link
+                            href={`/profile/${user.id}`}
+                            className="font-black text-gray-900 hover:text-blue-600 text-lg block leading-tight transition-colors tracking-tighter"
+                          >
+                            {userName}
+                          </Link>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.1em] mt-1">
+                            {userCareer}
+                          </p>
+                          {userSemester && (
+                            <p className="text-[9px] text-gray-500 font-medium mt-0.5">
+                              {userSemester}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-2 bg-white rounded-[2rem] p-20 text-center border-2 border-dashed border-gray-100">
+                    <p className="text-gray-400 font-black uppercase tracking-widest">
+                      👥 No hay personas en esta categoría.
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </section>
