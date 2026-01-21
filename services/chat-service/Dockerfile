@@ -1,4 +1,4 @@
-﻿FROM node:18-bullseye-slim
+﻿FROM node:20-bullseye-slim
 WORKDIR /usr/src/app
 
 RUN npm config set fetch-retries 5 && \

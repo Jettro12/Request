@@ -88,13 +88,13 @@ jobs:
         if: needs.changes.outputs[matrix.service] == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install dependencies
         if: needs.changes.outputs[matrix.service] == 'true'
         run: |
           cd services/${{ matrix.service }}-service
-          npm ci
+          npm install
 
       - name: Run unit & integration tests
         if: needs.changes.outputs[matrix.service] == 'true'
@@ -118,11 +118,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - run: |
           cd frontend
-          npm ci
+          npm install
           npm run lint || true
           npm test -- --passWithNoTests || true
           npm run build
