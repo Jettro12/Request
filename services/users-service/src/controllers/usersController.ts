@@ -1,3 +1,4 @@
+// services/users-service/src/controllers/usersController.ts
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 
