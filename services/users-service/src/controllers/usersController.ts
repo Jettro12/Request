@@ -7,7 +7,7 @@ import { prisma } from '../prisma';
 ===================================================== */
 export async function searchUsers(req: Request, res: Response) {
   try {
-    const { query, page = '1', limit = '20' } = req.query;
+    const { query, page = '1', limit = '20', career } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -15,11 +15,17 @@ export async function searchUsers(req: Request, res: Response) {
 
     const where: any = {};
 
+    // Filtro por query de búsqueda
     if (query && query !== 'undefined') {
       where.OR = [
         { name: { contains: query as string, mode: 'insensitive' } },
         { email: { contains: query as string, mode: 'insensitive' } },
       ];
+    }
+
+    // Filtro por carrera
+    if (career && career !== 'undefined') {
+      where.career = career;
     }
 
     const [users, total] = await Promise.all([
@@ -33,6 +39,11 @@ export async function searchUsers(req: Request, res: Response) {
           email: true,
           role: true,
           image: true,
+          career: true, // ✅ AÑADIDO
+          semester: true, // ✅ AÑADIDO
+          bio: true, // ✅ AÑADIDO
+          skills: true, // ✅ AÑADIDO
+          interests: true, // ✅ AÑADIDO
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -111,8 +122,13 @@ export async function getUsersByCareer(req: Request, res: Response) {
           name: true,
           email: true,
           career: true,
+          semester: true, // ✅ AÑADIDO
+          bio: true, // ✅ AÑADIDO
+          skills: true, // ✅ AÑADIDO
+          interests: true, // ✅ AÑADIDO
           image: true,
         },
+        orderBy: { name: 'asc' },
       }),
       prisma.user.count({ where }),
     ]);
@@ -158,6 +174,8 @@ export async function createProfile(req: Request, res: Response) {
         bio: '',
         skills: [],
         interests: [],
+        career: '', // ✅ AÑADIDO: campo vacío por defecto
+        semester: null, // ✅ AÑADIDO: null por defecto
       },
     });
 

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import ApiClient, { type Post, type User } from '@/lib/api/client';
+import ApiClient, { type Post } from '@/lib/api/client';
 
 const careerSpaces = [
   { name: 'Todos los espacios', emoji: '🌍' },
@@ -18,20 +18,18 @@ const careerSpaces = [
   { name: 'Artes', emoji: '🎭' },
 ];
 
-// Interfaz para estandarizar la respuesta de usuarios
-interface ApiUser {
+// Interfaz para usuarios del dashboard
+interface DashboardUser {
   id: string;
   name?: string;
-  career?: string;
-  careerSpace?: string;
-  semester?: number;
   email?: string;
-  // Para manejar diferentes estructuras de API
-  profile?: {
-    career?: string;
-    name?: string;
-    semester?: number;
-  };
+  career?: string;
+  semester?: number;
+  bio?: string;
+  skills?: string[];
+  interests?: string[];
+  image?: string | null;
+  createdAt?: string;
 }
 
 export default function Dashboard() {
@@ -40,10 +38,10 @@ export default function Dashboard() {
   const [view, setView] = useState<'posts' | 'people'>('posts');
   const [selectedCareer, setSelectedCareer] = useState('Todos los espacios');
   const [posts, setPosts] = useState<Post[]>([]);
-  const [people, setPeople] = useState<ApiUser[]>([]);
+  const [people, setPeople] = useState<DashboardUser[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Helper mejorado para limpiar IDs y mostrar nombres reales
+  // Helper para mostrar nombres
   const formatName = (name: string | null | undefined, authorId?: string) => {
     if (authorId === session?.user?.id && session?.user?.name)
       return session.user.name;
@@ -51,28 +49,6 @@ export default function Dashboard() {
     if (name.startsWith('cmk') && name.length > 15)
       return 'Compañero Universitario';
     return name;
-  };
-
-  // Helper para extraer la carrera de cualquier estructura
-  const getCareer = (user: ApiUser): string => {
-    // Intenta diferentes estructuras de datos
-    return (
-      user.career ||
-      user.careerSpace ||
-      user.profile?.career ||
-      'Carrera no especificada'
-    );
-  };
-
-  // Helper para extraer el nombre de cualquier estructura
-  const getName = (user: ApiUser): string => {
-    return user.name || user.profile?.name || 'Usuario';
-  };
-
-  // Helper para extraer el semestre de cualquier estructura
-  const getSemester = (user: ApiUser): string => {
-    const semester = user.semester || user.profile?.semester;
-    return semester ? `${semester}° Semestre` : '';
   };
 
   useEffect(() => {
@@ -91,7 +67,8 @@ export default function Dashboard() {
               ? { careerSpace: selectedCareer }
               : {};
           const res = await ApiClient.posts.getPosts(params);
-          console.log('Posts API response:', res); // Para debug
+
+          // Extraer posts de la respuesta
           const data =
             (res as any).data?.posts ||
             (res as any).posts ||
@@ -102,30 +79,44 @@ export default function Dashboard() {
             selectedCareer !== 'Todos los espacios'
               ? { career: selectedCareer }
               : {};
+
           const res = await ApiClient.users.searchUsers(params);
-          console.log('Users API response:', res); // Para debug
 
-          // Manejo flexible de la respuesta
-          let data: ApiUser[] = [];
+          // DEBUG: Ver estructura completa
+          console.log('API Response searchUsers:', res);
 
-          if (Array.isArray(res)) {
-            data = res;
-          } else if ((res as any)?.data?.users) {
-            data = (res as any).data.users;
-          } else if ((res as any)?.users) {
-            data = (res as any).users;
-          } else if ((res as any)?.data) {
-            // Si data es directamente un array
-            data = Array.isArray((res as any).data) ? (res as any).data : [];
+          // Manejar diferentes estructuras de respuesta
+          let users: DashboardUser[] = [];
+
+          if (res && typeof res === 'object') {
+            // Caso 1: { users: [...] }
+            if (Array.isArray((res as any).users)) {
+              users = (res as any).users;
+            }
+            // Caso 2: { data: { users: [...] } }
+            else if (
+              (res as any).data &&
+              Array.isArray((res as any).data.users)
+            ) {
+              users = (res as any).data.users;
+            }
+            // Caso 3: La respuesta ES directamente el array
+            else if (Array.isArray(res)) {
+              users = res;
+            }
+            // Caso 4: { data: [...] }
+            else if ((res as any).data && Array.isArray((res as any).data)) {
+              users = (res as any).data;
+            }
           }
 
-          setPeople(data);
-
-          // Debug: verificar la estructura de cada usuario
-          if (data.length > 0) {
-            console.log('Primer usuario en data:', data[0]);
-            console.log('Carrera del primer usuario:', getCareer(data[0]));
+          console.log('Usuarios extraídos:', users);
+          if (users.length > 0) {
+            console.log('Primer usuario:', users[0]);
+            console.log('Carrera del primer usuario:', users[0].career);
           }
+
+          setPeople(users);
         }
       } catch (err) {
         console.error('Error cargando dashboard:', err);
@@ -256,8 +247,7 @@ export default function Dashboard() {
                             {formatName(post.author?.name, post.author?.id)}
                           </span>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                            {/* Usa el helper para la carrera también en posts */}
-                            {getCareer(post.author as ApiUser) || 'Estudiante'}
+                            {post.author?.career || 'Estudiante'}
                           </p>
                         </div>
                       </Link>
@@ -278,9 +268,11 @@ export default function Dashboard() {
               <div className="grid md:grid-cols-2 gap-4">
                 {people.length > 0 ? (
                   people.map((user) => {
-                    const userCareer = getCareer(user);
-                    const userName = getName(user);
-                    const userSemester = getSemester(user);
+                    const userCareer = user.career || 'Carrera no especificada';
+                    const userName = user.name || 'Usuario';
+                    const userSemester = user.semester
+                      ? `${user.semester}° Semestre`
+                      : '';
 
                     return (
                       <div
@@ -303,6 +295,11 @@ export default function Dashboard() {
                           {userSemester && (
                             <p className="text-[9px] text-gray-500 font-medium mt-0.5">
                               {userSemester}
+                            </p>
+                          )}
+                          {user.email && (
+                            <p className="text-[9px] text-gray-400 truncate mt-1">
+                              ✉️ {user.email}
                             </p>
                           )}
                         </div>
