@@ -206,6 +206,21 @@ resource "aws_launch_template" "app_lt" {
   image_id      = "ami-0c02fb55956c7d316"
   instance_type = "t3.medium"
   key_name      = var.ssh_key_name
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    
+    ebs {
+      volume_size           = 16  # <-- CAMBIADO A 16 GB
+      volume_type           = "gp3"
+      delete_on_termination = true  # <-- SE ELIMINA AL TERMINAR (instancia fresca)
+      encrypted             = true
+      
+      # Performance opcional para gp3 (puedes ajustar)
+      iops       = 3000
+      throughput = 125
+    }
+  }
   
   network_interfaces {
     security_groups             = [aws_security_group.ec2_sg.id]

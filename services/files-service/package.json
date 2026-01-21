@@ -1,12 +1,17 @@
 {
   "name": "files-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Files upload service",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "mongoose": "^7.5.0",
+    "express-fileupload": "^1.4.0"
+  }
 }
