@@ -1,23 +1,26 @@
-# services/files-service/Dockerfile
+cat > Dockerfile << 'EOF'
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Instalar dependencias para compilación si es necesario
+# Instalar dependencias de compilación si es necesario
 RUN apk add --no-cache python3 make g++
 
-# Copiar package.json e instalar
+# Copiar package.json
 COPY package*.json ./
+
+# Instalar dependencias
 RUN npm install --only=production
 
 # Copiar código fuente
-COPY . .
+COPY src/ src/
 
-# Cambiar a usuario no-root (node usuario existe en esta imagen)
-USER node
-
-# Exponer puerto (usa el que tu app realmente usa)
+# Exponer puerto
 EXPOSE 4011
+
+# Usuario no-root
+USER node
 
 # Comando de inicio
 CMD ["node", "src/index.js"]
+EOF
