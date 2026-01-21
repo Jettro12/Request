@@ -1,4 +1,3 @@
-'EOF';
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 4011;
@@ -18,4 +17,3 @@ app.post('/upload', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Files service listening on port ${PORT}`);
 });
-EOF;
