@@ -40,12 +40,7 @@ export default function ProfileAvatarUpload({
     setError(null);
 
     try {
-      const result = await FilesClient.uploadFile(
-        file,
-        userId,
-        'avatar',
-        (percentage) => setProgress(percentage),
-      );
+      const result = await FilesClient.uploadFile(file, userId, 'avatar');
 
       onUploadComplete(result.file.url);
       alert('¡Avatar actualizado con éxito!');
