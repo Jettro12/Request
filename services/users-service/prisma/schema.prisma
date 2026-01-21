@@ -14,6 +14,7 @@ model User {
   name          String?
   password      String?
   image         String?
+  coverImage String?
   
   // 👇 CAMPO AGREGADO PARA CORREGIR EL ERROR DE BUILD
   role          String    @default("user") 

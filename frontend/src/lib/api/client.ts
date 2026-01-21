@@ -24,11 +24,18 @@ export interface User {
   email?: string;
   career?: string;
   semester?: number;
+  image?: string;
+  coverImage?: string;
   rating?: number;
   reviewCount?: number;
   bio?: string;
   skills?: string[];
   interests?: string[];
+  documents?: {
+    name: string;
+    url: string;
+    uploadedAt: string;
+  }[];
   createdAt?: string;
 }
 
@@ -58,6 +65,20 @@ export interface Post {
     name: string;
     career?: string;
   };
+}
+
+// Interfaz para archivos
+export interface FileData {
+  id: string;
+  filename: string;
+  originalName: string;
+  url: string;
+  thumbnailUrl?: string;
+  type: string;
+  size: number;
+  mimeType: string;
+  uploadedAt: string;
+  metadata?: any;
 }
 
 export interface ApiResponse<T = any> {
@@ -159,8 +180,6 @@ export class ApiClient {
       ? `?${new URLSearchParams(cleanParams).toString()}`
       : '';
 
-    console.log(`🔍 API GET: ${url}${query}`); // Para debug
-
     const response = await this.fetchWithAuth(url + query, {
       method: 'GET',
     });
@@ -192,6 +211,25 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
+  // Método especial para subida de archivos (FormData)
+  static async upload<T>(url: string, formData: FormData): Promise<T> {
+    const session: any = await getSession();
+    const token = session?.accessToken || session?.user?.accessToken;
+
+    const headers: Record<string, string> = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
   /* =====================================================
      AUTH (auth-service → /api/auth-custom)
   ===================================================== */
@@ -206,14 +244,14 @@ export class ApiClient {
   };
 
   /* =====================================================
-     USERS & PROFILE - CORREGIDO
+     USERS & PROFILE
   ===================================================== */
   static users = {
     // Obtener perfil de usuario
     getUserProfile: (id: string): Promise<ApiResponse<User>> =>
       ApiClient.get<ApiResponse<User>>(getApiUrl('users', id)),
 
-    // BUSCAR USUARIOS - CORREGIDO
+    // BUSCAR USUARIOS
     searchUsers: (params?: {
       query?: string;
       career?: string;
@@ -233,7 +271,7 @@ export class ApiClient {
         data,
       ),
 
-    // Nuevo: Obtener usuarios por carrera
+    // Obtener usuarios por carrera
     getUsersByCareer: (
       career: string,
       params?: {
@@ -247,9 +285,61 @@ export class ApiClient {
       );
     },
 
-    // Nuevo: Crear perfil
+    // Crear perfil
     createProfile: (data: any): Promise<ApiResponse<User>> =>
       ApiClient.post<ApiResponse<User>>(getApiUrl('users', 'profile'), data),
+  };
+
+  /* =====================================================
+     NUEVO: FILES SERVICE
+  ===================================================== */
+  static files = {
+    // Subir archivo
+    uploadFile: (
+      file: File,
+      userId: string,
+      type: 'avatar' | 'cover' | 'post_image' | 'post_video' | 'document',
+    ): Promise<ApiResponse<{ file: FileData }>> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', userId);
+      formData.append('type', type);
+
+      return ApiClient.upload<ApiResponse<{ file: FileData }>>(
+        '/api/files/upload', // Usa la ruta del proxy nginx
+        formData,
+      );
+    },
+
+    // Obtener archivos del usuario
+    getUserFiles: (
+      userId: string,
+      params?: {
+        type?: string;
+        page?: number;
+        limit?: number;
+      },
+    ): Promise<ApiResponse<{ files: FileData[] }>> => {
+      return ApiClient.get<ApiResponse<{ files: FileData[] }>>(
+        `/api/files/user/${userId}`,
+        params,
+      );
+    },
+
+    // Eliminar archivo
+    deleteFile: (
+      fileId: string,
+      userId: string,
+    ): Promise<ApiResponse<void>> => {
+      return ApiClient.delete<ApiResponse<void>>(`/api/files/${fileId}`, {
+        userId,
+      });
+    },
+
+    // Obtener archivo por ID
+    getFileById: (fileId: string): Promise<ApiResponse<FileData>> => {
+      return ApiClient.get<ApiResponse<FileData>>(`/api/files/${fileId}`);
+    },
   };
 
   /* =====================================================
@@ -313,6 +403,17 @@ export class ApiClient {
 
     createPost: (data: any) => ApiClient.post(getApiUrl('posts'), data),
   };
+
+  /* -------------------------------
+     MÉTODO DELETE (faltaba)
+  -------------------------------- */
+  static async delete<T>(url: string, body?: any): Promise<T> {
+    const response = await this.fetchWithAuth(url, {
+      method: 'DELETE',
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse<T>(response);
+  }
 }
 
 export default ApiClient;
