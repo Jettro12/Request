@@ -30,6 +30,8 @@ jobs:
       chat: ${{ steps.filter.outputs.chat }}
       frontend: ${{ steps.filter.outputs.frontend }}
       nginx: ${{ steps.filter.outputs.nginx }}
+      files: ${{ steps.filter.outputs.files }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -48,6 +50,7 @@ jobs:
             chat: ['services/chat-service/**']
             frontend: ['frontend/**']
             nginx: ['nginx/**']
+            files: ['services/files-service/**']
 
   build-and-push:
     needs: changes
@@ -68,6 +71,7 @@ jobs:
             chat,
             frontend,
             nginx,
+            files,
           ]
     steps:
       - name: Checkout
