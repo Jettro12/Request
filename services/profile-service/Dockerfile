@@ -1,28 +1,21 @@
-FROM node:18-bullseye-slim
+FROM node:20-bullseye-slim
 WORKDIR /usr/src/app
 
-# Configurar npm para mejor manejo de red
 RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000
 
-# Copiar archivos de configuración y dependencias
 COPY package*.json ./
-COPY tsconfig.json ./
+# Instalamos TODO primero (incluyendo prisma cli)
+RUN npm install --legacy-peer-deps
 
-# Instalar dependencias con retry automático
-RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
-
-# Copiar esquema de Prisma antes de generar el cliente
-COPY prisma ./prisma
-
-# Generar cliente de Prisma
-RUN npx prisma generate
- 
-# Copiar el resto del código
+# Copiamos todo el código de una vez para asegurar que Prisma encuentre el esquema
 COPY . .
 
+# Generamos el cliente (Prisma buscará automáticamente en ./prisma/schema.prisma)
+RUN npx prisma generate
+
 RUN npm run build
+RUN npm prune --production
+
 EXPOSE 4005
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]

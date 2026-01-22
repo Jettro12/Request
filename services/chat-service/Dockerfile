@@ -1,23 +1,26 @@
-﻿FROM node:18-bullseye-slim
+﻿FROM node:20-bullseye-slim
 WORKDIR /usr/src/app
 
-# Configurar npm para mejor manejo de red
 RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000
 
-# Copiar archivos de configuración y dependencias
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instalar dependencias con retry automático
-RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
+# Instalamos dependencias
+RUN npm install --legacy-peer-deps
 
-# Copiar el resto del código
 COPY . .
 
+# Generamos el build
 RUN npm run build
 
+# Limpiamos dependencias de desarrollo para que la imagen sea ligera
+RUN npm prune --production
+
+# EXPLICACIÓN: 
+# Si el error persiste, es probable que tu punto de entrada sea dist/index.js 
+# o que NestJS esté usando dist/src/main.js.
+# Ajustamos el CMD para que sea el estándar de NestJS:
 EXPOSE 4010
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]

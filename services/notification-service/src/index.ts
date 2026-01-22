@@ -15,115 +15,110 @@ import {
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || "4001");
-
 const app = express();
+
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") || [
       "http://localhost:3000",
-      "http://localhost:8080",
       "http://frontend:3000",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
+
 app.use(express.json());
 
-// ================= ROUTES =================
-
-// NGINX rewrite: /notifications → /
-// Por eso las rutas son raíz
-app.post("/", sendNotification);
-app.get("/", getUserNotifications);
-app.patch("/", markAllAsRead);
-app.patch("/:id", markAsRead);
-
-// health
-app.get("/health", (_req, res) => {
-  const dbState = prisma ? "ok" : "unknown";
-  res.json({ status: "ok", service: "notification-service", db: dbState });
+// RUTA RAÍZ
+app.get("/", (req, res) => {
+  res.json({ status: "ok", service: "notification-service" });
 });
 
-// ================= SOCKET.IO =================
+// RUTAS DE LA API (Asegúrate de que Nginx use el rewrite /api/notifications/)
+app.post("/", sendNotification);
+app.get("/list", getUserNotifications); // Cambiado a /list para evitar choque con GET /
+app.patch("/read-all", markAllAsRead);
+app.patch("/:id", markAsRead);
 
-const server = http.createServer(app);
-const io = new IOServer(server, { cors: { origin: "*" } });
-
-io.on("connection", (socket) => {
-  console.log("Socket connected", socket.id);
-
-  socket.on("join", (userId: string) => {
-    socket.join(userId);
-    console.log("Socket joined room", userId);
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "notification-service",
+    db: prisma ? "ok" : "unknown",
   });
 });
 
-// ================= START =================
+const server = http.createServer(app);
+const io = new IOServer(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Estado global para evitar que Kafka se reinicie infinitamente si ya está corriendo
+let isConsumerRunning = false;
+
+io.on("connection", (socket) => {
+  socket.on("join", (userId: string) => {
+    console.log(`👤 User ${userId} connected to notifications socket`);
+    socket.join(userId);
+  });
+});
 
 async function start() {
   try {
-    // HTTP server primero (health responde rápido)
-    server.listen(PORT, "0.0.0.0", () =>
-      console.log(`Notification service listening on ${PORT}`)
-    );
+    // 1. Conectar Base de Datos
+    await prisma.$connect();
+    console.log("✅ Notifications DB Connected");
 
-    // Prisma con retries
-    const maxDbRetries = 8;
-    let dbAttempt = 0;
+    // 2. Iniciar Kafka
+    await initKafka();
+    console.log("✅ Kafka Initialized");
 
-    while (dbAttempt < maxDbRetries) {
-      try {
-        await prisma.$connect();
-        console.log("Prisma connected to database");
-        break;
-      } catch (err) {
-        dbAttempt++;
-        console.warn(
-          `Prisma connect attempt ${dbAttempt} failed. Retrying in 2s...`
-        );
-        await new Promise((r) => setTimeout(r, 2000));
-      }
+    // 3. Iniciar el bucle de consumo solo si no está activo
+    if (!isConsumerRunning) {
+      isConsumerRunning = true;
+      await startConsumerLoop(
+        async ({
+          topic,
+          message,
+        }: {
+          topic: string;
+          partition: number;
+          message: any;
+        }) => {
+          try {
+            if (!message.value) return;
+
+            const event = JSON.parse(message.value.toString());
+
+            // Si el evento viene de otros servicios avisando de algo nuevo
+            if (event.action === "create" || event.notification) {
+              const payload = event.notification || event.post || event;
+
+              // Emitir vía Socket.io al usuario específico
+              if (payload.userId || payload.authorId) {
+                const targetId = payload.userId || payload.authorId;
+                io.to(targetId).emit("new-notification", payload);
+              }
+            }
+          } catch (err) {
+            console.error("❌ Error parsing Kafka message:", err);
+          }
+        },
+      );
+      console.log("🚀 Kafka Consumer Loop started");
     }
 
-    // Kafka init
-    await initKafka();
-
-    // Kafka consumer loop (🔥 TIPADO CORRECTO 🔥)
-    startConsumerLoop(
-      async ({
-        topic,
-        partition,
-        message,
-      }: {
-        topic: string;
-        partition: number;
-        message: { value: Buffer | null };
-      }) => {
-        try {
-          if (!message.value) return;
-
-          const event = JSON.parse(message.value.toString());
-
-          if (event.action === "create" && event.notification) {
-            io.to(event.notification.userId).emit(
-              "new-notification",
-              event.notification
-            );
-
-            console.log(
-              "Emitted new-notification to",
-              event.notification.userId
-            );
-          }
-        } catch (err) {
-          console.error("Error handling kafka message", err);
-        }
-      }
-    ).catch((err) => console.error("Consumer loop error", err));
+    server.listen(PORT, "0.0.0.0", () =>
+      console.log(`🔔 Notification service listening on ${PORT}`),
+    );
   } catch (error) {
-    console.error("Failed to start server", error);
+    console.error("❌ Failed to start notification-service:", error);
+    isConsumerRunning = false;
     process.exit(1);
   }
 }

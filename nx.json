@@ -1,0 +1,57 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/**/.env",
+      "{workspaceRoot}/**/.env.local",
+      "{workspaceRoot}/**/.env.*.local",
+      "{workspaceRoot}/docker-compose.yaml"
+    ],
+    "default": ["{projectRoot}/**/*", "sharedGlobals"]
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "{projectRoot}/src/**/*.ts",
+        "{projectRoot}/src/**/*.tsx",
+        "{projectRoot}/src/**/*.js",
+        "{projectRoot}/package.json",
+        "{projectRoot}/tsconfig.json"
+      ],
+      "outputs": [
+        "{projectRoot}/dist/**",
+        "{projectRoot}/build/**",
+        "{projectRoot}/.next/**"
+      ],
+      "cache": true
+    },
+    "dev": {
+      "cache": false
+    },
+    "lint": {
+      "outputs": ["{projectRoot}/.eslintcache"],
+      "cache": true
+    },
+    "type-check": {
+      "cache": true
+    },
+    "test": {
+      "outputs": ["{projectRoot}/coverage/**"],
+      "cache": true
+    },
+    "db:migrate": {
+      "outputs": ["{projectRoot}/prisma/migrations/**"],
+      "cache": false
+    },
+    "prisma:generate": {
+      "cache": true
+    },
+    "@nx/esbuild:esbuild": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^default"]
+    }
+  },
+  "defaultBase": "master"
+}

@@ -1,30 +1,55 @@
-import { getSession } from "next-auth/react";
-import { getApiUrl } from "@/config/api";
+import { getSession } from 'next-auth/react';
+import { getApiUrl } from '@/config/api';
 
+/* =====================================================
+   ERROR HANDLING
+===================================================== */
 export class ApiError extends Error {
-  constructor(message: string, public status?: number, public data?: any) {
+  constructor(
+    message: string,
+    public status?: number,
+    public data?: any,
+  ) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
   }
 }
 
-// ==========================================
-// INTERFACES - ACTUALIZADAS CON CAMPOS OPCIONALES
-// ==========================================
+/* =====================================================
+   INTERFACES
+===================================================== */
 export interface User {
   id: string;
   name: string;
   email?: string;
   career?: string;
   semester?: number;
+  image?: string;
+  coverImage?: string;
   rating?: number;
   reviewCount?: number;
   bio?: string;
   skills?: string[];
   interests?: string[];
+  documents?: {
+    name: string;
+    url: string;
+    uploadedAt: string;
+  }[];
   createdAt?: string;
-  updatedAt?: string;
-  avatar?: string;
+}
+
+export interface UserRequest {
+  id: string;
+  type: string;
+  message: string;
+  status: string;
+  createdAt: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUser: User;
+  toUser: User;
+  _count?: { messages: number };
 }
 
 export interface Post {
@@ -33,571 +58,450 @@ export interface Post {
   content: string;
   type: string;
   careerSpace: string;
-  skills: string[];
   createdAt: string;
+  authorId: string;
   author: {
     id: string;
     name: string;
     career?: string;
-    semester?: number;
-    rating?: number;
-    skills?: string[];
   };
 }
 
-export interface Request {
+// Interfaz para archivos
+export interface FileData {
   id: string;
+  filename: string;
+  originalName: string;
+  url: string;
+  thumbnailUrl?: string;
   type: string;
-  message: string;
-  status: string;
-  createdAt: string;
-  fromUser: User;
-  toUser: User;
-  _count: {
-    messages: number;
-  };
-  messages: Array<{
-    id: string;
-    content: string;
-    createdAt: string;
-    sender: {
-      id: string;
-      name: string;
-    };
-  }>;
+  size: number;
+  mimeType: string;
+  uploadedAt: string;
+  metadata?: any;
 }
 
+// Interfaz de respuesta mejorada para compatibilidad
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
-  message?: string;
+  message?: string; // Para compatibilidad con files-service
+  [key: string]: any; // Propiedades adicionales
 }
 
-export interface PostsResponse {
-  posts: Post[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+// Interfaz específica para respuesta de upload de files-service
+export interface FileUploadResponse {
+  success: boolean;
+  message: string;
+  file: FileData;
 }
 
-export interface UsersResponse {
+// Nueva interfaz para la respuesta de searchUsers
+export interface SearchUsersResponse {
   users: User[];
-  total?: number;
-  page?: number;
-  limit?: number;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
-// ==========================================
-// API CLIENT PRINCIPAL - CORREGIDO
-// ==========================================
+/* =====================================================
+   API CLIENT
+===================================================== */
 export class ApiClient {
-  // 👇 GESTIÓN DE TOKEN Y HEADERS
+  /* -------------------------------
+     FETCH WITH AUTH
+  -------------------------------- */
   private static async fetchWithAuth(
     url: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<Response> {
     const session: any = await getSession();
     const token = session?.accessToken || session?.user?.accessToken;
 
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers as Record<string, string>),
     };
 
-    console.log("🚀 FETCH →", url);
-
     return fetch(url, {
       ...options,
       headers,
-      credentials: "include",
+      credentials: 'include',
     });
   }
 
+  /* -------------------------------
+     RESPONSE HANDLER
+  -------------------------------- */
   private static async handleResponse<T>(response: Response): Promise<T> {
-    let data;
+    let data: any;
+
     try {
       data = await response.json();
-    } catch (e) {
+    } catch {
       data = { message: response.statusText };
     }
 
     if (!response.ok) {
       throw new ApiError(
-        data.message || data.error || "Error en la solicitud",
+        data?.message || data?.error || 'Request failed',
         response.status,
-        data
+        data,
       );
+    }
+
+    // Normalización estándar
+    if (Array.isArray(data)) {
+      return { success: true, data } as any;
+    }
+
+    if (data && typeof data === 'object' && data.success === undefined) {
+      return { success: true, data } as any;
     }
 
     return data;
   }
 
-  // --- MÉTODOS GENÉRICOS MEJORADOS ---
+  /* -------------------------------
+     HTTP METHODS
+  -------------------------------- */
   static async get<T>(url: string, params?: Record<string, any>): Promise<T> {
-    // Filtrar parámetros undefined, null, "undefined", "null", o vacíos
     const cleanParams = params
-      ? Object.entries(params).reduce((acc, [key, value]) => {
-          if (value === undefined || value === null) return acc;
-
-          const stringValue = String(value).trim();
-          if (
-            stringValue === "" ||
-            stringValue === "undefined" ||
-            stringValue === "null"
-          ) {
+      ? Object.entries(params).reduce(
+          (acc, [key, value]) => {
+            if (
+              value !== undefined &&
+              value !== null &&
+              value !== '' &&
+              value !== 'Todos los espacios'
+            ) {
+              acc[key] = value;
+            }
             return acc;
-          }
-
-          acc[key] = value;
-          return acc;
-        }, {} as Record<string, any>)
+          },
+          {} as Record<string, any>,
+        )
       : undefined;
 
-    const query =
-      cleanParams && Object.keys(cleanParams).length > 0
-        ? new URLSearchParams(cleanParams).toString()
-        : "";
+    const query = cleanParams
+      ? `?${new URLSearchParams(cleanParams).toString()}`
+      : '';
 
-    // CORRECCIÓN: Eliminar barras duplicadas antes del query string
-    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
-    const fullUrl = query ? `${cleanUrl}?${query}` : cleanUrl;
+    const response = await this.fetchWithAuth(url + query, {
+      method: 'GET',
+    });
 
-    console.log("🌐 API GET:", fullUrl);
-
-    const response = await this.fetchWithAuth(fullUrl, { method: "GET" });
     return this.handleResponse<T>(response);
   }
 
   static async post<T>(url: string, body?: any): Promise<T> {
-    // CORRECCIÓN: Eliminar barras duplicadas
-    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
-    console.log("🌐 API POST:", cleanUrl, body);
-    const response = await this.fetchWithAuth(cleanUrl, {
-      method: "POST",
+    const response = await this.fetchWithAuth(url, {
+      method: 'POST',
       body: JSON.stringify(body),
     });
     return this.handleResponse<T>(response);
   }
 
   static async put<T>(url: string, body?: any): Promise<T> {
-    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
-    console.log("🌐 API PUT:", cleanUrl, body);
-    const response = await this.fetchWithAuth(cleanUrl, {
-      method: "PUT",
+    const response = await this.fetchWithAuth(url, {
+      method: 'PUT',
       body: JSON.stringify(body),
     });
-    return this.handleResponse<T>(response);
-  }
-
-  static async delete<T>(url: string): Promise<T> {
-    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
-    console.log("🌐 API DELETE:", cleanUrl);
-    const response = await this.fetchWithAuth(cleanUrl, { method: "DELETE" });
     return this.handleResponse<T>(response);
   }
 
   static async patch<T>(url: string, body?: any): Promise<T> {
-    const cleanUrl = url.replace(/([^:]\/)\/+/g, "$1");
-    console.log("🌐 API PATCH:", cleanUrl, body);
-    const response = await this.fetchWithAuth(cleanUrl, {
-      method: "PATCH",
+    const response = await this.fetchWithAuth(url, {
+      method: 'PATCH',
       body: JSON.stringify(body),
     });
     return this.handleResponse<T>(response);
   }
 
-  // ==========================================
-  // SERVICIOS - CORREGIDOS
-  // ==========================================
+  /* -------------------------------
+   UPLOAD METHOD (FIXED & IMPROVED)
+------------------------------- */
+  static async upload<T>(url: string, formData: FormData): Promise<T> {
+    const session: any = await getSession();
+    const token = session?.accessToken || session?.user?.accessToken;
 
-  // AUTH SERVICE
+    // Headers para FormData - DEJAR QUE EL BROWSER ESTABLEZCA Content-Type
+    const headers: HeadersInit = {};
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Debug: ver qué se está enviando
+    console.log('=== UPLOAD DEBUG ===');
+    console.log('URL:', url);
+
+    // SOLUCIÓN CORREGIDA: Usar forEach en lugar de entries() para iterar
+    formData.forEach((value, key) => {
+      console.log(
+        `FormData[${key}]:`,
+        value instanceof File
+          ? `${(value as File).name} (${(value as File).size} bytes, ${(value as File).type})`
+          : value,
+      );
+    });
+
+    // Usar URL completa si es relativa
+    const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
+    console.log('Full URL:', fullUrl);
+
+    const response = await fetch(fullUrl, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+
+    console.log('Response status:', response.status);
+    console.log(
+      'Response headers:',
+      Object.fromEntries(response.headers.entries()),
+    );
+
+    const responseText = await response.text();
+    console.log('Response text:', responseText);
+
+    let data: any;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+      console.error('JSON parse error:', error, 'Text:', responseText);
+      throw new ApiError(
+        'Invalid JSON response from server',
+        response.status,
+        responseText,
+      );
+    }
+
+    // VERIFICACIÓN MEJORADA: Aceptar 201 Created como éxito
+    if (response.status === 201 || response.ok) {
+      console.log('Upload successful:', data);
+      return data as T;
+    }
+
+    // Si llega aquí, es un error
+    console.error('Upload failed:', data);
+    throw new ApiError(
+      data?.message || data?.error || `Upload failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+
+  /* -------------------------------
+     MÉTODO DELETE (faltaba)
+  -------------------------------- */
+  static async delete<T>(url: string, body?: any): Promise<T> {
+    const response = await this.fetchWithAuth(url, {
+      method: 'DELETE',
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  /* =====================================================
+     AUTH (auth-service → /api/auth-custom)
+  ===================================================== */
   static auth = {
-    register: async (data: any): Promise<ApiResponse<{ userId: string }>> => {
-      try {
-        // CORRECCIÓN IMPORTANTE: Cambiamos "" por "register"
-        // Esto genera "/auth/register" -> Proxy -> Backend "/register"
-        const url = getApiUrl("auth", "register");
+    login: (credentials: any) =>
+      ApiClient.post(getApiUrl('auth', 'login'), credentials),
 
-        const response = await ApiClient.post<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+    register: (data: any) =>
+      ApiClient.post(getApiUrl('auth', 'register'), data),
 
-    login: async (credentials: any): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("auth", "login");
-        const response = await ApiClient.post<ApiResponse>(url, credentials);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    logout: async (): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("auth", "logout");
-        const response = await ApiClient.post<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+    logout: () => ApiClient.post(getApiUrl('auth', 'logout'), {}),
   };
-  // USERS SERVICE
+
+  /* =====================================================
+     USERS & PROFILE
+  ===================================================== */
   static users = {
-    getUserProfile: async (
-      userId: string
-    ): Promise<ApiResponse<{ user: User }>> => {
-      try {
-        const url = getApiUrl("users", userId);
-        const response = await ApiClient.get<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+    // Obtener perfil de usuario
+    getUserProfile: (id: string): Promise<ApiResponse<User>> =>
+      ApiClient.get<ApiResponse<User>>(getApiUrl('users', id)),
 
-    createProfile: async (data: any): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("profile", "");
-        const response = await ApiClient.post<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    updateProfile: async (userId: string, data: any): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("profile", userId);
-        const response = await ApiClient.put<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    searchUsers: async (params: any): Promise<ApiResponse<UsersResponse>> => {
-      try {
-        const url = getApiUrl("users", "search");
-        const response = await ApiClient.get<ApiResponse<UsersResponse>>(
-          url,
-          params
-        );
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    getUsersByCareer: async (
-      career: string,
-      page = 1,
-      limit = 20
-    ): Promise<ApiResponse<UsersResponse>> => {
-      try {
-        const url = getApiUrl("users", `career/${career}`);
-        const response = await ApiClient.get<ApiResponse<UsersResponse>>(url, {
-          page,
-          limit,
-        });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-  };
-
-  // POSTS SERVICE - CORREGIDO
-  static posts = {
-    createPost: async (data: any): Promise<ApiResponse<{ postId: string }>> => {
-      try {
-        // CORRECCIÓN: Usar path vacío en lugar de "/"
-        const url = getApiUrl("posts", "");
-        const response = await ApiClient.post<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    getPosts: async (params?: {
-      careerSpace?: string;
-      type?: string;
+    // BUSCAR USUARIOS
+    searchUsers: (params?: {
+      query?: string;
+      career?: string;
       page?: number;
       limit?: number;
-      [key: string]: any;
-    }): Promise<ApiResponse<PostsResponse>> => {
-      try {
-        // CORRECCIÓN PRINCIPAL: Usar path vacío, no "/"
-        const url = getApiUrl("posts", "");
-        console.log("📡 URL para getPosts:", url);
-
-        // Parámetros por defecto
-        const defaultParams = {
-          page: 1,
-          limit: 20,
-          ...params,
-        };
-
-        // Filtrar valores específicos que no queremos enviar
-        const cleanParams: Record<string, any> = {
-          page: defaultParams.page,
-          limit: defaultParams.limit,
-        };
-
-        // Solo agregar careerSpace si tiene un valor válido
-        if (
-          defaultParams.careerSpace &&
-          defaultParams.careerSpace !== "undefined" &&
-          defaultParams.careerSpace !== "null" &&
-          defaultParams.careerSpace.trim() !== "" &&
-          defaultParams.careerSpace !== "Todos los espacios"
-        ) {
-          cleanParams.careerSpace = defaultParams.careerSpace;
-        }
-
-        // Solo agregar type si tiene un valor válido
-        if (
-          defaultParams.type &&
-          defaultParams.type !== "undefined" &&
-          defaultParams.type !== "null" &&
-          defaultParams.type.trim() !== "" &&
-          defaultParams.type !== "all"
-        ) {
-          cleanParams.type = defaultParams.type;
-        }
-
-        console.log("📡 Fetching posts with params:", cleanParams);
-
-        const response = await ApiClient.get<ApiResponse<PostsResponse>>(
-          url,
-          cleanParams
-        );
-        return response;
-      } catch (error: any) {
-        console.error("❌ Error in getPosts:", error);
-        return {
-          success: false,
-          error: error.message || "Error fetching posts",
-        };
-      }
+    }): Promise<ApiResponse<SearchUsersResponse>> => {
+      return ApiClient.get<ApiResponse<SearchUsersResponse>>(
+        getApiUrl('users', 'search'),
+        params,
+      );
     },
 
-    getPostById: async (
-      postId: string
-    ): Promise<ApiResponse<{ post: Post }>> => {
-      try {
-        const url = getApiUrl("posts", postId);
-        const response = await ApiClient.get<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
+    // Actualizar perfil
+    updateProfile: (id: string, data: any): Promise<ApiResponse<User>> =>
+      ApiClient.patch<ApiResponse<User>>(
+        getApiUrl('users', `${id}/profile`),
+        data,
+      ),
+
+    // Obtener usuarios por carrera
+    getUsersByCareer: (
+      career: string,
+      params?: {
+        page?: number;
+        limit?: number;
+      },
+    ): Promise<ApiResponse<SearchUsersResponse>> => {
+      return ApiClient.get<ApiResponse<SearchUsersResponse>>(
+        getApiUrl('users', `career/${career}`),
+        params,
+      );
     },
 
-    updatePost: async (postId: string, data: any): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("posts", postId);
-        const response = await ApiClient.put<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    deletePost: async (postId: string): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("posts", postId);
-        const response = await ApiClient.delete<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+    // Crear perfil
+    createProfile: (data: any): Promise<ApiResponse<User>> =>
+      ApiClient.post<ApiResponse<User>>(getApiUrl('users', 'profile'), data),
   };
 
-  // REQUESTS SERVICE - CORREGIDO
-  static requests = {
-    createRequest: async (
-      data: any
-    ): Promise<ApiResponse<{ requestId: string }>> => {
-      try {
-        const url = getApiUrl("requests", "");
-        const response = await ApiClient.post<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    getUserRequests: async (
+  /* =====================================================
+     NUEVO: FILES SERVICE (ACTUALIZADO)
+  ===================================================== */
+  static files = {
+    // Subir archivo - MANEJA LA RESPUESTA ESPECÍFICA DEL FILES-SERVICE
+    uploadFile: (
+      file: File,
       userId: string,
-      type: "all" | "received" | "sent" = "all"
-    ): Promise<ApiResponse<{ requests: Request[] }>> => {
-      try {
-        const url = getApiUrl("requests", `user/${userId}`);
-        const response = await ApiClient.get<ApiResponse>(url, { type });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+      type: 'avatar' | 'cover' | 'post_image' | 'post_video' | 'document',
+    ): Promise<ApiResponse<{ file: FileData }>> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', userId);
+      formData.append('type', type);
 
-    updateRequestStatus: async (
-      requestId: string,
-      status: string,
-      userId?: string
-    ): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("requests", `${requestId}/status`);
-        const session: any = await getSession();
-        const userIdToUse = userId || session?.user?.id;
-        const response = await ApiClient.put<ApiResponse>(url, {
-          status,
-          userId: userIdToUse,
+      console.log('📤 Preparing file upload...');
+      console.log('File:', file.name, file.size, file.type);
+      console.log('User ID:', userId);
+      console.log('Type:', type);
+
+      // El files-service devuelve: {success, message, file}
+      // Lo adaptamos a: {success, data: {file: ...}}
+      return ApiClient.upload<FileUploadResponse>('/api/files/upload', formData)
+        .then((response) => {
+          console.log('📥 Raw response from files-service:', response);
+
+          // Adaptar la respuesta al formato ApiResponse esperado
+          const adaptedResponse: ApiResponse<{ file: FileData }> = {
+            success: response.success !== undefined ? response.success : true,
+            data: response.file ? { file: response.file } : undefined,
+            message: response.message,
+            // Mantener la respuesta original como propiedad adicional
+            originalResponse: response,
+          };
+
+          console.log('✅ Adapted response:', adaptedResponse);
+          return adaptedResponse;
+        })
+        .catch((error) => {
+          console.error('❌ Error in uploadFile:', error);
+          throw error;
         });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
     },
 
-    completeRequest: async (
-      requestId: string,
-      data: any
-    ): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("requests", `${requestId}/complete`);
-        const response = await ApiClient.post<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
+    // Obtener archivos del usuario
+    getUserFiles: (
+      userId: string,
+      params?: {
+        type?: string;
+        page?: number;
+        limit?: number;
+      },
+    ): Promise<ApiResponse<{ files: FileData[] }>> => {
+      return ApiClient.get<ApiResponse<{ files: FileData[] }>>(
+        `/api/files/user/${userId}`,
+        params,
+      );
     },
 
-    getByChat: async (
-      otherUserId: string
-    ): Promise<ApiResponse<{ request: any }>> => {
-      try {
-        const session: any = await getSession();
-        const currentUserId = session?.user?.id;
-        if (!currentUserId) {
-          return { success: false, error: "Usuario no autenticado" };
-        }
-        const url = getApiUrl("requests", `chat/${otherUserId}`);
-        const response = await ApiClient.get<ApiResponse>(url, {
-          currentUserId,
-        });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
+    // Eliminar archivo
+    deleteFile: (
+      fileId: string,
+      userId: string,
+    ): Promise<ApiResponse<void>> => {
+      return ApiClient.delete<ApiResponse<void>>(`/api/files/${fileId}`, {
+        userId,
+      });
+    },
+
+    // Obtener archivo por ID
+    getFileById: (fileId: string): Promise<ApiResponse<FileData>> => {
+      return ApiClient.get<ApiResponse<FileData>>(`/api/files/${fileId}`);
     },
   };
 
-  // CHAT & CONVERSATIONS SERVICE
+  /* =====================================================
+     REQUESTS
+  ===================================================== */
+  static requests = {
+    createRequest: (data: any) => {
+      const payload = {
+        fromUserId: data.fromUserId || data.senderId,
+        toUserId: data.toUserId || data.receiverId,
+        type: (data.type || 'COLLABORATION').toUpperCase(),
+        message: data.message,
+      };
+      return ApiClient.post(getApiUrl('requests'), payload);
+    },
+
+    getUserRequests: (userId: string, type = 'all') =>
+      ApiClient.get(getApiUrl('requests', `user/${userId}`), { type }),
+
+    updateRequestStatus: (id: string, status: string, userId: string) =>
+      ApiClient.put(getApiUrl('requests', `${id}/status`), {
+        status,
+        userId,
+      }),
+
+    getByChat: (userId: string, otherUserId: string) =>
+      ApiClient.get(getApiUrl('requests', `chat/${userId}`), { otherUserId }),
+
+    completeRequest: (id: string, data: any) =>
+      ApiClient.post(getApiUrl('requests', `${id}/complete`), data),
+  };
+
+  /* =====================================================
+     CHAT & MESSAGES
+  ===================================================== */
   static chat = {
-    getUserConversations: async (
-      userId: string
-    ): Promise<ApiResponse<{ conversations: any[] }>> => {
-      try {
-        const url = getApiUrl("conversations", `users/${userId}/conversations`);
-        const response = await ApiClient.get<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
+    getUserConversations: (userId: string) =>
+      ApiClient.get(getApiUrl('conversations', `user/${userId}`)),
+
+    getConversationMessages: (u1: string, u2: string) => {
+      if (!u1 || !u2 || u1 === 'undefined' || u2 === 'undefined') {
+        return Promise.resolve({ success: true, data: [] } as any);
       }
+      return ApiClient.get(getApiUrl('messages', `history/${u1}/${u2}`));
     },
 
-    getConversationMessages: async (
-      conversationId: string
-    ): Promise<ApiResponse<{ messages: any[] }>> => {
-      try {
-        const url = getApiUrl("chat", `rooms/${conversationId}`);
-        const response = await ApiClient.get<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    sendMessage: async (
-      conversationId: string,
-      data: any
-    ): Promise<ApiResponse<{ messageId: string }>> => {
-      try {
-        const url = getApiUrl("messages", "");
-        const response = await ApiClient.post<ApiResponse>(url, {
-          ...data,
-          conversationId,
-        });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+    sendMessage: (data: any) =>
+      ApiClient.post(getApiUrl('messages'), {
+        senderId: data.senderId,
+        receiverId: data.receiverId,
+        content: data.content,
+        requestId: data.requestId,
+      }),
   };
 
-  // RATINGS SERVICE
-  static ratings = {
-    getUserRating: async (
-      userId: string
-    ): Promise<ApiResponse<{ rating: number; reviewCount: number }>> => {
-      try {
-        const url = getApiUrl("ratings", "");
-        const response = await ApiClient.get<ApiResponse>(url, {
-          toUser: userId,
-        });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+  /* =====================================================
+     POSTS
+  ===================================================== */
+  static posts = {
+    getPosts: (params?: any) => ApiClient.get(getApiUrl('posts'), params),
 
-    submitRating: async (data: any): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("ratings", "");
-        const response = await ApiClient.post<ApiResponse>(url, data);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-  };
-
-  // NOTIFICATIONS SERVICE
-  static notifications = {
-    getUserNotifications: async (
-      userId: string
-    ): Promise<ApiResponse<{ notifications: any[] }>> => {
-      try {
-        const url = getApiUrl("notifications", "");
-        const response = await ApiClient.get<ApiResponse>(url);
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
-
-    markAsRead: async (notificationId: string): Promise<ApiResponse> => {
-      try {
-        const url = getApiUrl("notifications", notificationId);
-        const response = await ApiClient.patch<ApiResponse>(url, {
-          read: true,
-        });
-        return response;
-      } catch (error: any) {
-        return { success: false, error: error.message };
-      }
-    },
+    createPost: (data: any) => ApiClient.post(getApiUrl('posts'), data),
   };
 }
 

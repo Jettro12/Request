@@ -1,22 +1,21 @@
-import { withAuth } from "next-auth/middleware";
-import type { NextRequest } from "next/server";
+import type { NextRequest } from 'next/server';
+import { withAuth, type NextRequestWithAuth } from 'next-auth/middleware';
 
 export default withAuth(
-  function middleware(request: NextRequest) {
+  function middleware(request: NextRequestWithAuth) {
     // You can add custom logic here if needed
   },
   {
-    pages: { 
-    },
-  }
+    pages: {},
+  },
 );
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/profile/:path*",
-    "/chat/:path*",
-    "/requests/:path*",
-    "/search/:path*",
+    '/dashboard/:path*',
+    '/profile/:path*',
+    '/chat/:path*',
+    '/requests/:path*',
+    '/search/:path*',
   ],
 };

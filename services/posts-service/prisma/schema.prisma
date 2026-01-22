@@ -1,14 +1,10 @@
-// prisma/schema.prisma - posts-service
-// User data is managed by users-service (shared authdb).
-// This service only manages Post records and authorId references.
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model Post {
@@ -18,11 +14,9 @@ model Post {
   type        String
   careerSpace String
   skills      String[] @default([])
-  authorId    String
   
-  // AGREGAR ESTA RELACIÓN (pero será simulada)
-  // author      User?    @relation(fields: [authorId], references: [id])
-  // Comentada porque User no está definido en este schema
+  // Referencia débil al usuario (Solo el ID)
+  authorId    String
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

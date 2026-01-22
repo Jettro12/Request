@@ -53,17 +53,17 @@ export default function RequestModal({
       setError("");
 
       // Usar microservicio de Requests
-      const result = await ApiClient.requests.createRequest({
+      const result = (await ApiClient.requests.createRequest({
         type: requestType,
         message: message.trim(),
         fromUserId: session.user.id,
         toUserId: receiverId,
-      });
+      })) as any;
 
       if (result.success) {
         // Mostrar mensaje de éxito
         alert(
-          "¡Request enviado! Espera a que el usuario lo acepte para comenzar a chatear."
+          "¡Request enviado! Espera a que el usuario lo acepte para comenzar a chatear.",
         );
 
         // Cerrar modal y ejecutar callback de éxito

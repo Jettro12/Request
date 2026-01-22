@@ -1,68 +1,127 @@
-version: "3.9"
+version: '3.9'
 
+# ===============================
+# REDES - CORRECCIÓN CRÍTICA
+# ===============================
 networks:
   microservices-net:
-    driver: bridge
+    external: true
+    name: app_microservices-net # Usa la red existente creada por Docker Compose
 
-volumes:
-  pg_data:
-
+# ===============================
+# SERVICIOS
+# ===============================
 services:
   # ===============================
   # INFRAESTRUCTURA
   # ===============================
-  postgres:
-    image: postgres:15-alpine
-    container_name: postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      # ESTA LINEA ES LA CLAVE PARA QUE FUNCIONE:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      retries: 10
-    networks:
-      - microservices-net
-
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    networks:
-      - microservices-net
-
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
-    networks:
-      - microservices-net
-
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
+    restart: always
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ['CMD', 'nc', '-z', 'localhost', '2181']
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - microservices-net
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
+    restart: always
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'kafka-broker-api-versions',
+          '--bootstrap-server',
+          'localhost:9092',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - microservices-net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_running']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+
+  # ===============================
+  # MONGODB PARA FILES-SERVICE
+  # ===============================
+  mongodb-files:
+    image: mongo:6
+    container_name: mongodb-files
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: files_db
+    volumes:
+      - mongodb_files_data:/data/db
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===============================
+  # GATEWAY & FRONTEND
+  # ===============================
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - files-service
+    networks:
+      - microservices-net
+
+  frontend:
+    image: ghcr.io/jettro12/frontend:latest
+    container_name: frontend
+    restart: always
+    env_file: .env
+    expose:
+      - '3000'
     networks:
       - microservices-net
 
@@ -72,24 +131,22 @@ services:
   auth-service:
     image: ghcr.io/jettro12/auth-service:latest
     container_name: auth-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/authdb
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
-      PORT: 4004
-    depends_on:
-      postgres:
-        condition: service_healthy
+    restart: always
+    env_file: .env
+    expose:
+      - '4004'
     networks:
       - microservices-net
 
   users-service:
     image: ghcr.io/jettro12/users-service:latest
     container_name: users-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/usersdb
-      PORT: 4007
+    restart: always
+    env_file: .env
+    expose:
+      - '4007'
     depends_on:
-      postgres:
+      rabbitmq:
         condition: service_healthy
     networks:
       - microservices-net
@@ -97,12 +154,12 @@ services:
   posts-service:
     image: ghcr.io/jettro12/posts-service:latest
     container_name: posts-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postsdb
-      KAFKA_BROKER: kafka:9092
-      PORT: 4002
+    restart: always
+    env_file: .env
+    expose:
+      - '4002'
     depends_on:
-      postgres:
+      kafka:
         condition: service_healthy
     networks:
       - microservices-net
@@ -110,23 +167,12 @@ services:
   requests-service:
     image: ghcr.io/jettro12/requests-service:latest
     container_name: requests-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/requestsdb
-      PORT: 4003
+    restart: always
+    env_file: .env
+    expose:
+      - '4003'
     depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - microservices-net
-
-  notification-service:
-    image: ghcr.io/jettro12/notification-service:latest
-    container_name: notification-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/notificationsdb
-      PORT: 4001
-    depends_on:
-      postgres:
+      kafka:
         condition: service_healthy
     networks:
       - microservices-net
@@ -134,11 +180,22 @@ services:
   profile-service:
     image: ghcr.io/jettro12/profile-service:latest
     container_name: profile-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/profiledb
-      PORT: 4005
+    restart: always
+    env_file: .env
+    expose:
+      - '4005'
+    networks:
+      - microservices-net
+
+  notification-service:
+    image: ghcr.io/jettro12/notification-service:latest
+    container_name: notification-service
+    restart: always
+    env_file: .env
+    expose:
+      - '4001'
     depends_on:
-      postgres:
+      kafka:
         condition: service_healthy
     networks:
       - microservices-net
@@ -146,23 +203,22 @@ services:
   ratings-service:
     image: ghcr.io/jettro12/ratings-service:latest
     container_name: ratings-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ratingsdb
-      PORT: 4006
-    depends_on:
-      postgres:
-        condition: service_healthy
+    restart: always
+    env_file: .env
+    expose:
+      - '4006'
     networks:
       - microservices-net
 
   messages-service:
     image: ghcr.io/jettro12/messages-service:latest
     container_name: messages-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/messagesdb
-      PORT: 4008
+    restart: always
+    env_file: .env
+    expose:
+      - '4008'
     depends_on:
-      postgres:
+      kafka:
         condition: service_healthy
     networks:
       - microservices-net
@@ -170,11 +226,12 @@ services:
   conversations-service:
     image: ghcr.io/jettro12/conversations-service:latest
     container_name: conversations-service
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/conversationsdb
-      PORT: 4009
+    restart: always
+    env_file: .env
+    expose:
+      - '4009'
     depends_on:
-      postgres:
+      kafka:
         condition: service_healthy
     networks:
       - microservices-net
@@ -182,29 +239,46 @@ services:
   chat-service:
     image: ghcr.io/jettro12/chat-service:latest
     container_name: chat-service
-    environment:
-      PORT: 4010
+    restart: always
+    env_file: .env
+    expose:
+      - '4010'
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - microservices-net
 
   # ===============================
-  # FRONTEND
+  # FILES SERVICE (puerto 4011)
   # ===============================
-  frontend:
-    image: ghcr.io/jettro12/frontend:latest
-    container_name: frontend
-    ports:
-      - "3000:3000"
+  files-service:
+    image: ghcr.io/jettro12/files-service:latest
+    container_name: files-service
+    restart: always
+    env_file: .env
     environment:
-      # NOTA: En produccion real, esto deberia ser el DNS del Load Balancer
-      # Pero para que arranque, lo dejamos asi.
-      NEXT_PUBLIC_API_BASE_URL: ""
-      NEXTAUTH_URL: http://tu-alb-url.us-east-1.elb.amazonaws.com
-      NEXTAUTH_SECRET: super-secret-prod
+      PORT: 4011
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb-files:27017/files_db?authSource=admin
+      BASE_URL: http://localhost:4011
+      JWT_SECRET: ${JWT_SECRET}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
+      ALLOWED_MIME_TYPES: ${ALLOWED_MIME_TYPES:-image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,application/pdf}
+    expose:
+      - '4011'
     depends_on:
-      - auth-service
-      - users-service
-      - posts-service
-      - requests-service
+      mongodb-files:
+        condition: service_healthy
     networks:
       - microservices-net
+    volumes:
+      - files_uploads:/app/uploads
+
+# ===============================
+# VOLÚMENES
+# ===============================
+volumes:
+  mongodb_files_data:
+    driver: local
+  files_uploads:
+    driver: local

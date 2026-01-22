@@ -114,14 +114,14 @@ function NewPost() {
       }
 
       // Usar microservicio de Posts - IMPORTANTE: type debe estar en MAYÚSCULAS
-      const result = await ApiClient.posts.createPost({
+      const result = (await ApiClient.posts.createPost({
         title: formData.title,
         content: formData.content,
         type: formData.type.toUpperCase(), // ← Convertir a mayúsculas
         careerSpace: formData.careerSpace,
         skills: formData.skills,
         authorId: session.user.id,
-      });
+      })) as any;
 
       if (!result.success) {
         throw new Error(result.error || "Error al crear la publicación");
