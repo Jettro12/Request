@@ -105,6 +105,7 @@ npm start
 ```
 
 Opciones:
+
 - **a** - Abrir en Android Emulator
 - **i** - Abrir en iOS Simulator
 - **w** - Abrir en web
@@ -112,16 +113,19 @@ Opciones:
 - **r** - Reload app
 
 ### Emulador Android
+
 ```bash
 npm run android
 ```
 
 ### Emulador iOS (solo Mac)
+
 ```bash
 npm run ios
 ```
 
 ### Web Preview
+
 ```bash
 npm run web
 ```
@@ -131,31 +135,37 @@ npm run web
 ## 📱 Screens Principales
 
 ### Home Screen
+
 - Pantalla inicial
 - CTA para login
 - Información general
 
 ### Login Screen
+
 - Autenticación
 - Registro de nuevo usuario
 - Remember me
 
 ### Dashboard Screen
+
 - Feed principal
 - Actividades recientes
 - Acceso rápido
 
 ### Posts Screen
+
 - Listado de posts
 - Crear nuevo post
 - Filtros
 
 ### Profile Screen
+
 - Información de perfil
 - Editar datos
 - Settings
 
 ### Chat Screen
+
 - Conversaciones
 - Chat en tiempo real
 - Notificaciones
@@ -171,7 +181,7 @@ import axios from 'axios';
 const login = async (email: string, password: string) => {
   const response = await axios.post('/api/auth/login', {
     email,
-    password
+    password,
   });
 
   if (response.data.token) {

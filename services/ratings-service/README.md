@@ -28,6 +28,7 @@ El **Ratings Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -40,9 +41,11 @@ Accesible en: `http://localhost:4006`
 ## 📚 Endpoints API
 
 ### POST /ratings
+
 Crear valoración
 
 **Request:**
+
 ```json
 {
   "fromUserId": "cmk56lt4f0007qj55so4afsyi",
@@ -54,6 +57,7 @@ Crear valoración
 ```
 
 **Response (201):**
+
 ```json
 {
   "success": true,
@@ -69,9 +73,11 @@ Crear valoración
 ```
 
 ### GET /ratings/user/:userId
+
 Obtener ratings de usuario
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -93,9 +99,11 @@ Obtener ratings de usuario
 ```
 
 ### GET /ratings/user/:userId/stats
+
 Obtener estadísticas de ratings
 
 **Response (200):**
+
 ```json
 {
   "success": true,

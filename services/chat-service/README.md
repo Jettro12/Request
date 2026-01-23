@@ -28,6 +28,7 @@ El **Chat Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -36,6 +37,7 @@ npm run dev
 Accesible en: `http://localhost:4010`
 
 ### Producción
+
 ```bash
 npm run build
 npm start
@@ -48,104 +50,115 @@ npm start
 ### Client → Server
 
 **join-room**
+
 ```javascript
 socket.emit('join-room', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
-  userName: 'Juan Pérez'
+  userName: 'Juan Pérez',
 });
 ```
 
 **send-message**
+
 ```javascript
 socket.emit('send-message', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
   userName: 'Juan Pérez',
   message: 'Hola, cómo estás?',
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 });
 ```
 
 **typing**
+
 ```javascript
 socket.emit('typing', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
-  userName: 'Juan Pérez'
+  userName: 'Juan Pérez',
 });
 ```
 
 **stop-typing**
+
 ```javascript
 socket.emit('stop-typing', {
   roomId: 'request_id_aqui',
-  userId: 'cmk56lt4f0007qj55so4afsyi'
+  userId: 'cmk56lt4f0007qj55so4afsyi',
 });
 ```
 
 **leave-room**
+
 ```javascript
 socket.emit('leave-room', {
   roomId: 'request_id_aqui',
-  userId: 'cmk56lt4f0007qj55so4afsyi'
+  userId: 'cmk56lt4f0007qj55so4afsyi',
 });
 ```
 
 ### Server → Client
 
 **message-received**
+
 ```javascript
 socket.on('message-received', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
   userName: 'Juan Pérez',
   message: 'Hola, cómo estás?',
-  timestamp: '2024-01-20T10:30:00Z'
+  timestamp: '2024-01-20T10:30:00Z',
 });
 ```
 
 **user-joined**
+
 ```javascript
 socket.on('user-joined', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
   userName: 'Juan Pérez',
-  usersInRoom: ['user1', 'user2', 'user3']
+  usersInRoom: ['user1', 'user2', 'user3'],
 });
 ```
 
 **user-left**
+
 ```javascript
 socket.on('user-left', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
   userName: 'Juan Pérez',
-  usersInRoom: ['user1', 'user2']
+  usersInRoom: ['user1', 'user2'],
 });
 ```
 
 **user-typing**
+
 ```javascript
 socket.on('user-typing', {
   roomId: 'request_id_aqui',
   userId: 'cmk56lt4f0007qj55so4afsyi',
-  userName: 'Juan Pérez'
+  userName: 'Juan Pérez',
 });
 ```
 
 **user-stop-typing**
+
 ```javascript
 socket.on('user-stop-typing', {
   roomId: 'request_id_aqui',
-  userId: 'cmk56lt4f0007qj55so4afsyi'
+  userId: 'cmk56lt4f0007qj55so4afsyi',
 });
 ```
 
 **error**
+
 ```javascript
 socket.on('error', {
-  message: 'Error message here'
+  message: 'Error message here',
 });
 ```
 
@@ -160,14 +173,14 @@ const socket = io('http://localhost:4010', {
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
-  reconnectionAttempts: 5
+  reconnectionAttempts: 5,
 });
 
 useEffect(() => {
   socket.emit('join-room', {
     roomId: requestId,
     userId: currentUserId,
-    userName: currentUserName
+    userName: currentUserName,
   });
 
   socket.on('message-received', (data) => {
@@ -178,7 +191,7 @@ useEffect(() => {
   return () => {
     socket.emit('leave-room', {
       roomId: requestId,
-      userId: currentUserId
+      userId: currentUserId,
     });
     socket.disconnect();
   };
@@ -190,7 +203,7 @@ const sendMessage = (text: string) => {
     userId: currentUserId,
     userName: currentUserName,
     message: text,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 };
 ```
@@ -200,6 +213,7 @@ const sendMessage = (text: string) => {
 ## 📊 Estructura de Datos
 
 **Room:**
+
 ```typescript
 {
   roomId: string;

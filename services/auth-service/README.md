@@ -32,6 +32,7 @@ El **Auth Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -40,6 +41,7 @@ npm run dev
 Accesible en: `http://localhost:4004`
 
 ### Producción
+
 ```bash
 npm run build
 npm start
@@ -50,9 +52,11 @@ npm start
 ## 📚 Endpoints API
 
 ### POST /auth/register
+
 Registrar nuevo usuario
 
 **Request:**
+
 ```json
 {
   "email": "usuario@example.com",
@@ -62,6 +66,7 @@ Registrar nuevo usuario
 ```
 
 **Response (201):**
+
 ```json
 {
   "success": true,
@@ -75,9 +80,11 @@ Registrar nuevo usuario
 ```
 
 ### POST /auth/login
+
 Iniciar sesión
 
 **Request:**
+
 ```json
 {
   "email": "usuario@example.com",
@@ -86,6 +93,7 @@ Iniciar sesión
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -99,14 +107,17 @@ Iniciar sesión
 ```
 
 ### GET /auth/me
+
 Obtener usuario actual (requiere JWT)
 
 **Headers:**
+
 ```
 Authorization: Bearer {token}
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -125,9 +136,11 @@ Authorization: Bearer {token}
 ```
 
 ### POST /auth/refresh
+
 Refrescar JWT token
 
 **Request:**
+
 ```json
 {
   "token": "token_anterior"
@@ -135,6 +148,7 @@ Refrescar JWT token
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -143,9 +157,11 @@ Refrescar JWT token
 ```
 
 ### POST /auth/logout
+
 Cerrar sesión
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -164,18 +180,18 @@ model User {
   email         String    @unique
   password      String?
   image         String?
-  
+
   career        String?
   semester      Int?
   bio           String?
   role          String    @default("user")
-  
+
   skills        String[]  @default([])
   interests     String[]  @default([])
-  
+
   rating        Float     @default(0)
   reviewCount   Int       @default(0)
-  
+
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -269,6 +285,7 @@ npm run test:coverage
 ## 🔄 Integración con Otros Servicios
 
 Este servicio se comunica con:
+
 - **Frontend**: Devuelve JWT tokens para autenticación
 - **NextAuth.js**: Compatible con callbacks de sesión
 

@@ -31,6 +31,7 @@ El **Users Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -39,6 +40,7 @@ npm run dev
 Accesible en: `http://localhost:4007`
 
 ### Producción
+
 ```bash
 npm run build
 npm start
@@ -49,9 +51,11 @@ npm start
 ## 📚 Endpoints API
 
 ### GET /users
+
 Obtener lista de usuarios con filtros
 
 **Query Parameters:**
+
 ```
 ?search=juan
 ?career=Ingeniería
@@ -62,6 +66,7 @@ Obtener lista de usuarios con filtros
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -87,9 +92,11 @@ Obtener lista de usuarios con filtros
 ```
 
 ### GET /users/:id
+
 Obtener usuario específico
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -112,9 +119,11 @@ Obtener usuario específico
 ```
 
 ### PUT /users/:id
+
 Actualizar perfil de usuario
 
 **Request:**
+
 ```json
 {
   "name": "Juan Pérez",
@@ -128,6 +137,7 @@ Actualizar perfil de usuario
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -148,9 +158,11 @@ Actualizar perfil de usuario
 ```
 
 ### POST /users/search
+
 Búsqueda avanzada de usuarios
 
 **Request:**
+
 ```json
 {
   "query": "javascript",
@@ -163,6 +175,7 @@ Búsqueda avanzada de usuarios
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -180,9 +193,11 @@ Búsqueda avanzada de usuarios
 ```
 
 ### DELETE /users/:id
+
 Eliminar usuario (soft delete)
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -201,18 +216,18 @@ model User {
   email         String    @unique
   password      String?
   image         String?
-  
+
   career        String?
   semester      Int?
   bio           String    @db.Text @default("")
   role          String    @default("user")
-  
+
   skills        String[]  @default([])
   interests     String[]  @default([])
-  
+
   rating        Float     @default(0)
   reviewCount   Int       @default(0)
-  
+
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -230,11 +245,13 @@ model User {
 ## 🔄 Eventos (RabbitMQ)
 
 **Topics que publica:**
+
 - `users.created` - Cuando se crea un usuario
 - `users.updated` - Cuando se actualiza un usuario
 - `users.deleted` - Cuando se elimina un usuario
 
 **Topics que consume:**
+
 - `auth.user_created` - Sincroniza con Auth Service
 
 ---

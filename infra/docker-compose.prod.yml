@@ -134,7 +134,7 @@ services:
     restart: always
     env_file: .env
     environment:
-      - REDIS_URL=redis://IP_DE_REDIS_TERRAFORM:6379
+      - REDIS_URL=redis://app-redis.kxo6ra.0001.use1.cache.amazonaws.com:6379
     expose:
       - '4004'
     networks:
@@ -195,7 +195,7 @@ services:
     restart: always
     env_file: .env
     environment:
-      - MQTT_URL=mqtt://IP_DE_MQTT_TERRAFORM:1883
+      - MQTT_URL=mqtt://172.31.69.87:1883
     expose:
       - '4001'
     depends_on:

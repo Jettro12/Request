@@ -111,6 +111,7 @@ DEBUG=false
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm run dev
 ```
@@ -118,12 +119,14 @@ npm run dev
 Accesible en: `http://localhost:3000`
 
 ### Compilar
+
 ```bash
 npm run build
 npm start
 ```
 
 ### Linting
+
 ```bash
 npm run lint
 npm run type-check
@@ -142,19 +145,19 @@ npm run type-check
 ### Flujo de Login
 
 ```typescript
-import { signIn } from "next-auth/react";
+import { signIn } from 'next-auth/react';
 
 // Login
-await signIn("credentials", {
-  email: "usuario@example.com",
-  password: "password",
+await signIn('credentials', {
+  email: 'usuario@example.com',
+  password: 'password',
   redirect: true,
-  callbackUrl: "/dashboard"
+  callbackUrl: '/dashboard',
 });
 
 // Logout
-import { signOut } from "next-auth/react";
-await signOut({ redirect: true, callbackUrl: "/" });
+import { signOut } from 'next-auth/react';
+await signOut({ redirect: true, callbackUrl: '/' });
 ```
 
 ### Obtener Sesión
@@ -177,18 +180,21 @@ export function MyComponent() {
 ## 🎨 Componentes Principales
 
 ### Home Page
+
 ```typescript
 // Página de inicio
 // Muestra landing page con CTA para login
 ```
 
 ### Dashboard
+
 ```typescript
 // Panel principal del usuario
 // Estadísticas, posts recientes, solicitudes pendientes
 ```
 
 ### Posts
+
 ```typescript
 // Listado de posts
 // Filtros por carrera, skills, tipo
@@ -196,6 +202,7 @@ export function MyComponent() {
 ```
 
 ### Requests
+
 ```typescript
 // Gestión de solicitudes
 // Solicitudes recibidas y enviadas
@@ -203,6 +210,7 @@ export function MyComponent() {
 ```
 
 ### Profile
+
 ```typescript
 // Perfil de usuario
 // Editar información
@@ -211,6 +219,7 @@ export function MyComponent() {
 ```
 
 ### Chat
+
 ```typescript
 // Chat en tiempo real
 // Conexión WebSocket
@@ -240,11 +249,13 @@ npm run test:coverage
 ## 📦 Build y Deploy
 
 ### Build para Producción
+
 ```bash
 npm run build
 ```
 
 Genera:
+
 - `.next/standalone` - Aplicación optimizada
 - `.next/static` - Assets estáticos
 - Próxima versión lista para deployment
@@ -269,7 +280,7 @@ docker run -p 3000:3000 request-app-frontend:latest
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
 });
 
 // Interceptor para agregar token

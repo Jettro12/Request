@@ -28,6 +28,7 @@ El **Profile Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -36,6 +37,7 @@ npm run dev
 Accesible en: `http://localhost:4005`
 
 ### Producción
+
 ```bash
 npm run build
 npm start
@@ -46,9 +48,11 @@ npm start
 ## 📚 Endpoints API
 
 ### GET /profile/:userId
+
 Obtener perfil público de usuario
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -71,9 +75,11 @@ Obtener perfil público de usuario
 ```
 
 ### GET /profile/:userId/stats
+
 Obtener estadísticas de usuario
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -93,15 +99,18 @@ Obtener estadísticas de usuario
 ```
 
 ### GET /profile/:userId/recommendations
+
 Obtener recomendaciones de colaboradores
 
 **Query Parameters:**
+
 ```
 ?limit=10
 &skill=React
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,

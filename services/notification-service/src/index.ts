@@ -12,10 +12,11 @@ dotenv.config();
 const PORT = parseInt(process.env.PORT || '4001');
 const app = express();
 
-// Configuración de Cliente MQTT
-const mqttClient = mqtt.connect(
-  process.env.MQTT_URL || 'mqtt://localhost:1883',
-);
+// =========================
+// MQTT
+// =========================
+const mqttUrl = process.env.MQTT_URL || 'mqtt://172.31.69.87:1883';
+const mqttClient = mqtt.connect(mqttUrl);
 
 mqttClient.on('connect', () => {
   console.log('📡 Notification Service conectado al Broker MQTT');
@@ -38,6 +39,9 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// =========================
+// SOCKET.IO
+// =========================
 const server = http.createServer(app);
 const io = new IOServer(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
@@ -52,6 +56,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// =========================
+// KAFKA + MQTT
+// =========================
 async function start() {
   try {
     await prisma.$connect();
@@ -64,16 +71,15 @@ async function start() {
           if (!message.value) return;
           const event = JSON.parse(message.value.toString());
 
-          // Extraemos la información de la notificación
           const payload = event.notification || event.post || event;
           const targetId =
             payload.userId || payload.authorId || payload.receiverId;
 
           if (targetId) {
-            // RUTA 1: Emitir vía Socket.io (WEB)
+            // Emitir vía Socket.io (WEB)
             io.to(targetId).emit('new-notification', payload);
 
-            // RUTA 2: Emitir vía MQTT (MÓVIL / ESCRITORIO)
+            // Emitir vía MQTT (MÓVIL / ESCRITORIO)
             const mqttTopic = `request/user/${targetId}`;
             const mqttPayload = JSON.stringify({
               title: 'Nueva Notificación',

@@ -29,6 +29,7 @@ El **Conversations Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -41,9 +42,11 @@ Accesible en: `http://localhost:4009`
 ## 📚 Endpoints API
 
 ### POST /conversations
+
 Crear conversación
 
 **Request:**
+
 ```json
 {
   "userId1": "cmk56lt4f0007qj55so4afsyi",
@@ -52,6 +55,7 @@ Crear conversación
 ```
 
 **Response (201):**
+
 ```json
 {
   "success": true,
@@ -66,9 +70,11 @@ Crear conversación
 ```
 
 ### GET /conversations/user/:userId
+
 Obtener conversaciones del usuario
 
 **Response (200):**
+
 ```json
 {
   "success": true,

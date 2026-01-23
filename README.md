@@ -37,6 +37,7 @@
 ## 🛠️ Stack Tecnológico
 
 ### Frontend
+
 - **Next.js 14.2.35** - Framework React fullstack
 - **React 18.3** - Librería UI
 - **Tailwind CSS 3.4** - Estilos utility-first
@@ -46,26 +47,31 @@
 - **TypeScript 5.3** - Type-safe development
 
 ### Backend
+
 - **Node.js 20+** - Runtime JavaScript
 - **Express.js 4.22** - Framework HTTP
 - **TypeScript 5.5+** - Type-safe backend
 - **Prisma 5.20+** - ORM moderno
 
 ### Bases de Datos
+
 - **PostgreSQL 11+** - Base de datos principal (relacional)
 - **MongoDB 6+** - NoSQL para files-service
 
 ### Event Streaming & Messaging
+
 - **Apache Kafka 7.5** - Event streaming entre servicios
 - **RabbitMQ 3-management** - Message broker (backup/alternativa)
 
 ### Infraestructura
+
 - **Docker & Docker Compose** - Containerización
 - **Nginx** - Reverse proxy y API Gateway
 - **AWS (Terraform)** - Infrastructure as Code
 - **GitHub Actions** - CI/CD automation
 
 ### Monorepo & Build Tools
+
 - **Nx 22.3.3** - Monorepo management
 - **Turbo** - Build optimization
 - **ESLint 9** - Linting
@@ -184,39 +190,46 @@ request-app/
 ### Pasos de Instalación
 
 1. **Clonar repositorio**
+
 ```bash
 git clone https://github.com/tu-usuario/request-app.git
 cd request-app
 ```
 
 2. **Instalar dependencias del root**
+
 ```bash
 npm install
 ```
 
 3. **Instalar dependencias de servicios**
+
 ```bash
 # Instala dependencias en todos los servicios
 npm run install:all
 ```
 
 4. **Configurar variables de entorno**
+
 ```bash
 cp .env.example .env
 # Editar .env con tus valores
 ```
 
 5. **Iniciar stack de desarrollo (Docker)**
+
 ```bash
 docker-compose up -d
 ```
 
 6. **Ejecutar migraciones de Prisma**
+
 ```bash
 npm run prisma:migrate
 ```
 
 7. **Iniciar servicios**
+
 ```bash
 # Terminal 1: Frontend
 cd frontend && npm run dev
@@ -231,6 +244,7 @@ cd services/auth-service && npm run dev
 ## 🔐 Variables de Entorno
 
 ### `.env.local` (Frontend)
+
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost/api
 NEXTAUTH_SECRET=tu-secret-seguro-aleatorio
@@ -240,6 +254,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key
 ```
 
 ### `.env` (Root - Servicios)
+
 ```env
 # Base de datos
 DATABASE_URL=postgresql://user:password@localhost:5432/request_app
@@ -271,19 +286,19 @@ CHAT_SERVICE_URL=http://chat-service:4010
 
 ## 🔧 Microservicios
 
-| Servicio | Puerto | BD | Descripción |
-|----------|--------|----|----|
-| **Auth Service** | 4004 | PostgreSQL | Autenticación, JWT, login/register |
-| **Users Service** | 4007 | PostgreSQL | Gestión de usuarios, perfiles |
-| **Posts Service** | 4002 | PostgreSQL | Crear, editar, eliminar posts |
-| **Requests Service** | 4003 | PostgreSQL | Solicitudes entre usuarios |
-| **Profile Service** | 4005 | PostgreSQL | Información extendida de perfiles |
-| **Notification Service** | 4001 | PostgreSQL | Notificaciones en tiempo real |
-| **Messages Service** | 4008 | PostgreSQL | Mensajería privada |
-| **Conversations Service** | 4009 | PostgreSQL | Gestión de conversaciones |
-| **Chat Service** | 4010 | En memoria | WebSocket chat en tiempo real |
-| **Files Service** | 4011 | MongoDB | Upload/download archivos |
-| **Ratings Service** | 4006 | PostgreSQL | Valoraciones y reviews |
+| Servicio                  | Puerto | BD         | Descripción                        |
+| ------------------------- | ------ | ---------- | ---------------------------------- |
+| **Auth Service**          | 4004   | PostgreSQL | Autenticación, JWT, login/register |
+| **Users Service**         | 4007   | PostgreSQL | Gestión de usuarios, perfiles      |
+| **Posts Service**         | 4002   | PostgreSQL | Crear, editar, eliminar posts      |
+| **Requests Service**      | 4003   | PostgreSQL | Solicitudes entre usuarios         |
+| **Profile Service**       | 4005   | PostgreSQL | Información extendida de perfiles  |
+| **Notification Service**  | 4001   | PostgreSQL | Notificaciones en tiempo real      |
+| **Messages Service**      | 4008   | PostgreSQL | Mensajería privada                 |
+| **Conversations Service** | 4009   | PostgreSQL | Gestión de conversaciones          |
+| **Chat Service**          | 4010   | En memoria | WebSocket chat en tiempo real      |
+| **Files Service**         | 4011   | MongoDB    | Upload/download archivos           |
+| **Ratings Service**       | 4006   | PostgreSQL | Valoraciones y reviews             |
 
 Cada servicio tiene su propio README detallado. Ver carpeta `services/*/README.md`
 
@@ -292,6 +307,7 @@ Cada servicio tiene su propio README detallado. Ver carpeta `services/*/README.m
 ## ▶️ Ejecución
 
 ### Desarrollo Local (con Docker)
+
 ```bash
 # Iniciar todos los servicios
 docker-compose up -d
@@ -306,6 +322,7 @@ docker-compose down
 ### Desarrollo Local (Manual - sin Docker)
 
 **Terminal 1 - Frontend**
+
 ```bash
 cd frontend
 npm install
@@ -314,6 +331,7 @@ npm run dev
 ```
 
 **Terminal 2 - Auth Service**
+
 ```bash
 cd services/auth-service
 npm install
@@ -321,6 +339,7 @@ npm run dev
 ```
 
 **Terminal 3 - Otros servicios** (repetir para cada uno)
+
 ```bash
 cd services/posts-service
 npm install
@@ -330,6 +349,7 @@ npm run dev
 ### Build para Producción
 
 **Frontend**
+
 ```bash
 cd frontend
 npm run build
@@ -337,6 +357,7 @@ npm start
 ```
 
 **Servicios**
+
 ```bash
 cd services/auth-service
 npm run build
@@ -381,6 +402,7 @@ docker push ghcr.io/tu-usuario/frontend:latest
 ### CI/CD con GitHub Actions
 
 El workflow `deploy-nx.yml` automáticamente:
+
 - ✅ Construye imágenes Docker
 - ✅ Hace push a GHCR
 - ✅ Despliega en AWS

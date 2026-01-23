@@ -29,6 +29,7 @@ El **Messages Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm run dev
@@ -37,6 +38,7 @@ npm run dev
 Accesible en: `http://localhost:4008`
 
 ### Producción
+
 ```bash
 npm run build
 npm start
@@ -47,9 +49,11 @@ npm start
 ## 📚 Endpoints API
 
 ### POST /messages
+
 Enviar mensaje
 
 **Request:**
+
 ```json
 {
   "senderId": "cmk56lt4f0007qj55so4afsyi",
@@ -59,6 +63,7 @@ Enviar mensaje
 ```
 
 **Response (201):**
+
 ```json
 {
   "success": true,
@@ -74,15 +79,18 @@ Enviar mensaje
 ```
 
 ### GET /messages/user/:userId/conversation/:otherUserId
+
 Obtener conversación entre dos usuarios
 
 **Query Parameters:**
+
 ```
 ?limit=50
 &offset=0
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -109,9 +117,11 @@ Obtener conversación entre dos usuarios
 ```
 
 ### PUT /messages/:id/read
+
 Marcar mensaje como leído
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -124,9 +134,11 @@ Marcar mensaje como leído
 ```
 
 ### DELETE /messages/:id
+
 Eliminar mensaje
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -142,13 +154,13 @@ Eliminar mensaje
 model DirectMessage {
   id         String   @id @default(cuid())
   content    String   @db.Text
-  
+
   senderId   String
   receiverId String
-  
+
   read       Boolean  @default(false)
   readAt     DateTime?
-  
+
   createdAt  DateTime @default(now())
   deletedAt  DateTime?
 
@@ -164,6 +176,7 @@ model DirectMessage {
 ## 🔄 Eventos (Kafka)
 
 **Topics que publica:**
+
 - `messages.sent` - Cuando se envía un mensaje
 - `messages.read` - Cuando se marca como leído
 

@@ -71,6 +71,7 @@ npm run make
 ```
 
 Genera instaladores para:
+
 - Windows (.exe, .msi)
 - macOS (.dmg)
 - Linux (.deb, .rpm)
@@ -96,8 +97,8 @@ app.on('ready', () => {
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
-    }
+      preload: path.join(__dirname, 'preload.js'),
+    },
   });
 
   mainWindow.loadFile('index.html');
@@ -122,7 +123,7 @@ const { contextBridge, ipcMain } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   getSystemStats: () => ipcMain.invoke('get-system-stats'),
   getServiceStatus: () => ipcMain.invoke('get-service-status'),
-  restartService: (name) => ipcMain.invoke('restart-service', name)
+  restartService: (name) => ipcMain.invoke('restart-service', name),
 });
 ```
 
@@ -139,26 +140,31 @@ console.log(stats);
 ## 📊 Funcionalidades Principales
 
 ### Dashboard
+
 - Estado de servicios
 - Métricas del sistema
 - Logs recientes
 
 ### Microservicios
+
 - Listado de servicios
 - Health checks
 - Restart/Stop/Start
 
 ### Usuarios
+
 - Gestión de usuarios
 - Estadísticas de actividad
 - Búsqueda y filtros
 
 ### Logs
+
 - Visualización de logs
 - Filtros por servicio
 - Export a archivo
 
 ### Settings
+
 - Configuración de conexión
 - Tokens de API
 - Preferencias
@@ -179,7 +185,7 @@ const getServices = async () => {
 const restartService = async (serviceName) => {
   const response = await axios.post(
     `http://localhost/api/admin/services/${serviceName}/restart`,
-    {}
+    {},
   );
   return response.data;
 };
@@ -240,17 +246,17 @@ module.exports = {
   packagerConfig: {
     name: 'Request Admin',
     icon: './assets/icon',
-    asar: true
+    asar: true,
   },
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: { certificateFile: './cert.pfx' }
+      config: { certificateFile: './cert.pfx' },
     },
     {
-      name: '@electron-forge/maker-zip'
-    }
-  ]
+      name: '@electron-forge/maker-zip',
+    },
+  ],
 };
 ```
 

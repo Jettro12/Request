@@ -30,6 +30,7 @@ El **Files Service** es responsable de:
 ## 🏃 Ejecución
 
 ### Desarrollo
+
 ```bash
 npm install
 npm start
@@ -38,6 +39,7 @@ npm start
 Accesible en: `http://localhost:4011`
 
 ### Producción
+
 ```bash
 npm run build
 npm start
@@ -48,14 +50,17 @@ npm start
 ## 📚 Endpoints API
 
 ### POST /upload
+
 Subir archivo
 
 **Multipart FormData:**
+
 ```
 file: <archivo_binario>
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -71,9 +76,11 @@ file: <archivo_binario>
 ```
 
 ### GET /files/:fileId
+
 Descargar archivo
 
 **Response:**
+
 ```
 Content-Type: <tipo_mime_del_archivo>
 Content-Disposition: attachment; filename="original_filename"
@@ -81,9 +88,11 @@ Content-Disposition: attachment; filename="original_filename"
 ```
 
 ### DELETE /files/:fileId
+
 Eliminar archivo
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -92,9 +101,11 @@ Eliminar archivo
 ```
 
 ### GET /files/:fileId/info
+
 Obtener información del archivo
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -117,6 +128,7 @@ ALLOWED_MIME_TYPES=image/jpeg,image/png,image/gif,image/webp,video/mp4,video/web
 ```
 
 Por defecto soporta:
+
 - **Imágenes:** JPEG, PNG, GIF, WebP
 - **Videos:** MP4, WebM
 - **Documentos:** PDF
@@ -138,23 +150,23 @@ MAX_FILE_SIZE=104857600
 // GridFS almacena archivos con metadatos
 db.fs.files.insertOne({
   _id: ObjectId,
-  length: number,        // Tamaño en bytes
-  chunkSize: 261120,     // Tamaño de chunk estándar
+  length: number, // Tamaño en bytes
+  chunkSize: 261120, // Tamaño de chunk estándar
   uploadDate: Date,
   filename: string,
   contentType: string,
   metadata: {
     uploadedBy: string,
-    uploadedAt: Date
-  }
+    uploadedAt: Date,
+  },
 });
 
 // Los chunks se almacenan en fs.chunks
 db.fs.chunks.insertOne({
   _id: ObjectId,
-  files_id: ObjectId,    // Referencia a fs.files
-  n: number,             // Número de chunk
-  data: BinData          // Datos binarios
+  files_id: ObjectId, // Referencia a fs.files
+  n: number, // Número de chunk
+  data: BinData, // Datos binarios
 });
 ```
 
@@ -223,8 +235,8 @@ const uploadFile = async (file: File) => {
       method: 'POST',
       body: formData,
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
 
     const data = await response.json();
@@ -244,8 +256,8 @@ const deleteFile = async (fileId: string) => {
   const response = await fetch(`/api/files/${fileId}`, {
     method: 'DELETE',
     headers: {
-      'Authorization': `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   const data = await response.json();
