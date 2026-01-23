@@ -1,0 +1,29 @@
+{
+  "name": "request-admin",
+  "version": "1.0.0",
+  "description": "Sistema de monitoreo y administracion de microservicios Request",
+  "main": "main.js",
+  "author": "Jettro",
+  "license": "ISC",
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
+  },
+  "keywords": [
+    "admin",
+    "monitor",
+    "microservices"
+  ],
+  "devDependencies": {
+    "@electron-forge/cli": "^7.5.0",
+    "@electron-forge/maker-deb": "^7.5.0",
+    "@electron-forge/maker-rpm": "^7.5.0",
+    "@electron-forge/maker-squirrel": "^7.5.0",
+    "@electron-forge/maker-zip": "^7.5.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.5.0",
+    "@electron-forge/plugin-fuses": "^7.5.0",
+    "@electron/fuses": "^1.8.0",
+    "electron": "^40.0.0"
+  }
+}

@@ -133,6 +133,8 @@ services:
     container_name: auth-service
     restart: always
     env_file: .env
+    environment:
+      - REDIS_URL=redis://app-redis.kxo6ra.0001.use1.cache.amazonaws.com:6379
     expose:
       - '4004'
     networks:
@@ -192,6 +194,8 @@ services:
     container_name: notification-service
     restart: always
     env_file: .env
+    environment:
+      - MQTT_URL=mqtt://172.31.69.87:1883
     expose:
       - '4001'
     depends_on:

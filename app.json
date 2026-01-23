@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "84ef3674-3e6e-4fd3-95a5-a0103965e1fa"
+      }
+    },
+    "android": {
+      "package": "com.jffolleco.requestapp"
+    }
+  }
+}

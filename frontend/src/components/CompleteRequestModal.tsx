@@ -7,7 +7,7 @@ import { AnyARecord } from 'dns';
 interface CompleteRequestModalProps {
   requestId: string;
   otherUserName: string;
-  otherUserId: string;
+  otherUserId?: string;
   onClose: () => void;
   onSuccess: () => void;
 }

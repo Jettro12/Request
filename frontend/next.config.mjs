@@ -1,6 +1,6 @@
 // next.config.mjs (PRODUCCIÓN)
 const nextConfig = {
-  output: "standalone",
+  output: 'standalone',
   reactStrictMode: true,
 };
 
