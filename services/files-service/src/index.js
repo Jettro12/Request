@@ -61,7 +61,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
         filename: file.originalname,
         size: file.size,
         mimetype: file.mimetype,
-        url: `http://localhost:4011/files/${fileId}`,
+        url: `${BASE_URL}/api/files/files/${fileId}`,
         uploadedAt: new Date().toISOString(),
         userId: userId,
         type: type,
