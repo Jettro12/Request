@@ -1,9 +1,8 @@
+
+
 import { getSession } from 'next-auth/react';
 import { getApiUrl } from '@/config/api';
 
-/* =====================================================
-   ERROR HANDLING
-===================================================== */
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -15,9 +14,6 @@ export class ApiError extends Error {
   }
 }
 
-/* =====================================================
-   INTERFACES
-===================================================== */
 export interface User {
   id: string;
   name: string;
@@ -67,7 +63,6 @@ export interface Post {
   };
 }
 
-// Interfaz para archivos
 export interface FileData {
   id: string;
   filename: string;
@@ -81,23 +76,20 @@ export interface FileData {
   metadata?: any;
 }
 
-// Interfaz de respuesta mejorada para compatibilidad
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
-  message?: string; // Para compatibilidad con files-service
-  [key: string]: any; // Propiedades adicionales
+  message?: string; 
+  [key: string]: any; 
 }
 
-// Interfaz específica para respuesta de upload de files-service
 export interface FileUploadResponse {
   success: boolean;
   message: string;
   file: FileData;
 }
 
-// Nueva interfaz para la respuesta de searchUsers
 export interface SearchUsersResponse {
   users: User[];
   total: number;
@@ -106,13 +98,8 @@ export interface SearchUsersResponse {
   totalPages: number;
 }
 
-/* =====================================================
-   API CLIENT
-===================================================== */
 export class ApiClient {
-  /* -------------------------------
-     FETCH WITH AUTH
-  -------------------------------- */
+  
   private static async fetchWithAuth(
     url: string,
     options: RequestInit = {},
@@ -133,9 +120,6 @@ export class ApiClient {
     });
   }
 
-  /* -------------------------------
-     RESPONSE HANDLER
-  -------------------------------- */
   private static async handleResponse<T>(response: Response): Promise<T> {
     let data: any;
 
@@ -153,7 +137,6 @@ export class ApiClient {
       );
     }
 
-    // Normalización estándar
     if (Array.isArray(data)) {
       return { success: true, data } as any;
     }
@@ -165,9 +148,6 @@ export class ApiClient {
     return data;
   }
 
-  /* -------------------------------
-     HTTP METHODS
-  -------------------------------- */
   static async get<T>(url: string, params?: Record<string, any>): Promise<T> {
     const cleanParams = params
       ? Object.entries(params).reduce(
@@ -221,25 +201,19 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  /* -------------------------------
-   UPLOAD METHOD (FIXED & IMPROVED)
-------------------------------- */
   static async upload<T>(url: string, formData: FormData): Promise<T> {
     const session: any = await getSession();
     const token = session?.accessToken || session?.user?.accessToken;
 
-    // Headers para FormData - DEJAR QUE EL BROWSER ESTABLEZCA Content-Type
     const headers: HeadersInit = {};
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Debug: ver qué se está enviando
     console.log('=== UPLOAD DEBUG ===');
     console.log('URL:', url);
 
-    // SOLUCIÓN CORREGIDA: Usar forEach en lugar de entries() para iterar
     formData.forEach((value, key) => {
       console.log(
         `FormData[${key}]:`,
@@ -249,7 +223,6 @@ export class ApiClient {
       );
     });
 
-    // Usar URL completa si es relativa
     const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
     console.log('Full URL:', fullUrl);
 
@@ -281,13 +254,11 @@ export class ApiClient {
       );
     }
 
-    // VERIFICACIÓN MEJORADA: Aceptar 201 Created como éxito
     if (response.status === 201 || response.ok) {
       console.log('Upload successful:', data);
       return data as T;
     }
 
-    // Si llega aquí, es un error
     console.error('Upload failed:', data);
     throw new ApiError(
       data?.message || data?.error || `Upload failed (${response.status})`,
@@ -296,9 +267,6 @@ export class ApiClient {
     );
   }
 
-  /* -------------------------------
-     MÉTODO DELETE (faltaba)
-  -------------------------------- */
   static async delete<T>(url: string, body?: any): Promise<T> {
     const response = await this.fetchWithAuth(url, {
       method: 'DELETE',
@@ -307,9 +275,6 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  /* =====================================================
-     AUTH (auth-service → /api/auth-custom)
-  ===================================================== */
   static auth = {
     login: (credentials: any) =>
       ApiClient.post(getApiUrl('auth', 'login'), credentials),
@@ -320,15 +285,11 @@ export class ApiClient {
     logout: () => ApiClient.post(getApiUrl('auth', 'logout'), {}),
   };
 
-  /* =====================================================
-     USERS & PROFILE
-  ===================================================== */
   static users = {
-    // Obtener perfil de usuario
+    
     getUserProfile: (id: string): Promise<ApiResponse<User>> =>
       ApiClient.get<ApiResponse<User>>(getApiUrl('users', id)),
 
-    // BUSCAR USUARIOS
     searchUsers: (params?: {
       query?: string;
       career?: string;
@@ -341,14 +302,10 @@ export class ApiClient {
       );
     },
 
-    // Actualizar perfil
-    updateProfile: (id: string, data: any): Promise<ApiResponse<User>> =>
-      ApiClient.patch<ApiResponse<User>>(
-        getApiUrl('users', `${id}/profile`),
-        data,
-      ),
+    updateProfile: (id: string, data: any) =>
+  ApiClient.put(getApiUrl('users', `${id}/profile`), data),
 
-    // Obtener usuarios por carrera
+
     getUsersByCareer: (
       career: string,
       params?: {
@@ -362,56 +319,50 @@ export class ApiClient {
       );
     },
 
-    // Crear perfil
     createProfile: (data: any): Promise<ApiResponse<User>> =>
       ApiClient.post<ApiResponse<User>>(getApiUrl('users', 'profile'), data),
   };
 
-  /* =====================================================
-     NUEVO: FILES SERVICE (ACTUALIZADO)
-  ===================================================== */
   static files = {
-    // Subir archivo - MANEJA LA RESPUESTA ESPECÍFICA DEL FILES-SERVICE
-    uploadFile: (
-      file: File,
-      userId: string,
-      type: 'avatar' | 'cover' | 'post_image' | 'post_video' | 'document',
-    ): Promise<ApiResponse<{ file: FileData }>> => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', userId);
-      formData.append('type', type);
+    
+    uploadFile: async (
+  file: File,
+  userId: string,
+  type: 'avatar' | 'cover' | 'post_image' | 'post_video' | 'document',
+): Promise<FileData> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('userId', userId);
+  formData.append('type', type);
 
-      console.log('📤 Preparing file upload...');
-      console.log('File:', file.name, file.size, file.type);
-      console.log('User ID:', userId);
-      console.log('Type:', type);
+  console.log('📤 Preparing file upload...');
+  console.log('File:', file.name, file.size, file.type);
+  console.log('User ID:', userId);
+  console.log('Type:', type);
 
-      // El files-service devuelve: {success, message, file}
-      // Lo adaptamos a: {success, data: {file: ...}}
-      return ApiClient.upload<FileUploadResponse>('/api/files/upload', formData)
-        .then((response) => {
-          console.log('📥 Raw response from files-service:', response);
+  const rawResponse = await ApiClient.upload<any>(
+    '/api/files/upload',
+    formData,
+  );
 
-          // Adaptar la respuesta al formato ApiResponse esperado
-          const adaptedResponse: ApiResponse<{ file: FileData }> = {
-            success: response.success !== undefined ? response.success : true,
-            data: response.file ? { file: response.file } : undefined,
-            message: response.message,
-            // Mantener la respuesta original como propiedad adicional
-            originalResponse: response,
-          };
+  console.log('📥 Raw response from files-service:', rawResponse);
 
-          console.log('✅ Adapted response:', adaptedResponse);
-          return adaptedResponse;
-        })
-        .catch((error) => {
-          console.error('❌ Error in uploadFile:', error);
-          throw error;
-        });
-    },
+  // Normalización REAL
+  const fileData =
+    rawResponse?.data?.file ??
+    rawResponse?.file ??
+    null;
 
-    // Obtener archivos del usuario
+  if (!fileData) {
+    console.error('❌ No file data found in response:', rawResponse);
+    throw new Error('Error subiendo archivo');
+  }
+
+  console.log('✅ File uploaded correctly:', fileData);
+  return fileData;
+},
+
+
     getUserFiles: (
       userId: string,
       params?: {
@@ -426,7 +377,6 @@ export class ApiClient {
       );
     },
 
-    // Eliminar archivo
     deleteFile: (
       fileId: string,
       userId: string,
@@ -436,15 +386,11 @@ export class ApiClient {
       });
     },
 
-    // Obtener archivo por ID
     getFileById: (fileId: string): Promise<ApiResponse<FileData>> => {
       return ApiClient.get<ApiResponse<FileData>>(`/api/files/${fileId}`);
     },
   };
 
-  /* =====================================================
-     REQUESTS
-  ===================================================== */
   static requests = {
     createRequest: (data: any) => {
       const payload = {
@@ -472,9 +418,6 @@ export class ApiClient {
       ApiClient.post(getApiUrl('requests', `${id}/complete`), data),
   };
 
-  /* =====================================================
-     CHAT & MESSAGES
-  ===================================================== */
   static chat = {
     getUserConversations: (userId: string) =>
       ApiClient.get(getApiUrl('conversations', `user/${userId}`)),
@@ -495,9 +438,6 @@ export class ApiClient {
       }),
   };
 
-  /* =====================================================
-     POSTS
-  ===================================================== */
   static posts = {
     getPosts: (params?: any) => ApiClient.get(getApiUrl('posts'), params),
 
