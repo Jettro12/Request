@@ -42,7 +42,7 @@ export default function EditProfile() {
           });
 
           if (profile.image) setAvatarPreview(profile.image);
-          if (profile.coverImage) setCoverPreview(profile.coverImage);
+           
         }
       } catch (err) {
         console.error('Error cargando perfil:', err);
@@ -98,27 +98,7 @@ export default function EditProfile() {
     }
   };
 
-  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingCover(true);
-    setError('');
-
-    try {
-      const url = await uploadFile(file, 'cover');
-      setCoverPreview(url);
-
-      await ApiClient.users.updateProfile(session!.user.id, {
-        coverImage: url,
-      });
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Error subiendo portada');
-    } finally {
-      setUploadingCover(false);
-    }
-  };
+   
 
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -130,7 +110,7 @@ export default function EditProfile() {
     await ApiClient.users.updateProfile(session!.user.id, {
       ...formData,
       image: avatarPreview,
-      coverImage: coverPreview,
+       
     });
 
     setSuccess('¡Perfil actualizado con éxito!');
@@ -180,17 +160,7 @@ export default function EditProfile() {
                 )}
               </div>
 
-              <div>
-                <label className="font-bold text-sm">Portada</label>
-                <input type="file" accept="image/*" onChange={handleCoverChange} />
-                {uploadingCover && <p>Subiendo portada...</p>}
-                {coverPreview && (
-                  <img
-                    src={coverPreview}
-                    className="w-full h-32 object-cover mt-2"
-                  />
-                )}
-              </div>
+              
 
               <textarea
                 value={formData.bio}
