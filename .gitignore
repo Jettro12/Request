@@ -82,3 +82,14 @@ next-env.d.ts
 # Executables
 # ------------------------------
 *.exe
+# Electron build folders
+desktop-app/out/
+desktop-app/bin/
+
+# Mobile build folders
+mobile-app/.expo/
+mobile-app/node_modules/
+
+# OS files
+Thumbs.db
+.DS_Store

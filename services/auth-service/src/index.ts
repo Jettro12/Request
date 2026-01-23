@@ -4,29 +4,53 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { prisma } from './prisma';
 import { Prisma } from '@prisma/client';
+import Redis from 'ioredis';
 
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '4004');
 const app = express();
 
+// =========================
+// REDIS (Cache login)
+// =========================
+const redisUrl =
+  process.env.REDIS_URL ||
+  'redis://app-redis.kxo6ra.0001.use1.cache.amazonaws.com:6379';
+
+const redis = new Redis(redisUrl);
+
+redis.on('connect', () => {
+  console.log('✅ Auth Service conectado a Redis con éxito');
+});
+
+redis.on('error', (err) => {
+  console.error('❌ Error crítico en Redis:', err);
+});
+
+// =========================
+// CORS
+// =========================
+const allowedOrigins = (process.env.CORS_ORIGIN?.split(',') || [
+  'http://localhost:3000',
+  'http://frontend:3000',
+  'http://app-alb-896588448.us-east-1.elb.amazonaws.com',
+]) as string[];
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN?.split(',') || [
-      'http://localhost:3000',
-      'http://localhost:8080',
-      'http://frontend:3000',
-    ],
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
+
 app.use(express.json());
 
-// ==========================================
-// REGISTER ROUTE (OPTIMIZADA PARA DB COMPARTIDA)
-// ==========================================
+// =========================
+// RUTAS
+// =========================
 app.post('/register', async (req, res) => {
   const { name, email, password, career, semester, bio } = req.body;
 
@@ -41,92 +65,87 @@ app.post('/register', async (req, res) => {
         semester: semester ? Number(semester) : null,
         bio: bio || '',
         role: 'user',
-        // skills e interests nacen vacíos aquí como pediste
       },
     });
 
     res.json({ user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return res.status(409).json({ error: 'El email ya está registrado' });
-      }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return res.status(409).json({ error: 'El email ya está registrado' });
     }
     console.error('Error en register:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// ==========================================
-// LOGIN ROUTE
-// ==========================================
+// =========================
+// LOGIN CON CACHE-ASIDE
+// =========================
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'missing' });
-  }
+  if (!email || !password)
+    return res.status(400).json({ error: 'missing credentials' });
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ error: 'invalid' });
+    const cachedUser = await redis.get(`user:login:${email}`);
+
+    if (cachedUser) {
+      console.log('⚡ LOGIN: Cache Hit (Redis)');
+      const user = JSON.parse(cachedUser);
+      const isValid = await bcrypt.compare(password, user.password || '');
+      if (!isValid) return res.status(401).json({ error: 'invalid' });
+      const { password: _, ...userSafe } = user;
+      return res.json({ user: userSafe });
     }
+
+    console.log('💾 LOGIN: Cache Miss (DB)');
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(401).json({ error: 'invalid' });
 
     const isValid = await bcrypt.compare(password, user.password || '');
-    if (!isValid) {
-      return res.status(401).json({ error: 'invalid' });
-    }
+    if (!isValid) return res.status(401).json({ error: 'invalid' });
 
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        career: user.career,
-        semester: user.semester,
-        bio: user.bio,
-        rating: user.rating || 0,
-        reviewCount: user.reviewCount || 0, // Opcional: devolver más datos al login
-      },
-    });
+    await redis.set(`user:login:${email}`, JSON.stringify(user), 'EX', 600);
+
+    const { password: _, ...userNoPass } = user;
+    res.json({ user: userNoPass });
   } catch (error) {
     console.error('Error en login:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-app.post('/logout', async (req, res) => {
-  res.json({ success: true, message: 'Logged out successfully' });
+app.post('/logout', async (_req, res) => {
+  res.json({ success: true, message: 'Logged out' });
 });
 
 app.get('/health', (_req, res) => {
-  const dbState = prisma ? 'ok' : 'unknown';
-  res.json({ status: 'ok', service: 'auth-service', db: dbState });
+  res.json({
+    status: 'ok',
+    service: 'auth-service',
+    db: prisma ? 'connected' : 'error',
+    redis: redis.status,
+  });
 });
 
 async function start() {
   app.listen(PORT, '0.0.0.0', () =>
-    console.log(`Auth service listening on ${PORT}`),
+    console.log(`Auth service running on port ${PORT}`),
   );
 
-  // prisma warmup
-  const maxDbRetries = 8;
-  let dbAttempt = 0;
-  while (dbAttempt < maxDbRetries) {
-    try {
-      await prisma.$connect();
-      console.log('Auth prisma connected');
-      break;
-    } catch (err) {
-      dbAttempt++;
-      console.warn(`Prisma connect retry ${dbAttempt}...`);
-      await new Promise((r) => setTimeout(r, 2000));
-    }
+  try {
+    await prisma.$connect();
+    console.log('Auth prisma connected');
+  } catch (err) {
+    console.error('Prisma connection failed', err);
   }
 }
 
 start().catch((err) => {
-  console.error('Failed to start auth-service', err);
+  console.error('Fatal Auth Error', err);
   process.exit(1);
 });

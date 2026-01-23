@@ -57,7 +57,7 @@ jobs:
             nginx: ['nginx/**']
 
   # ==========================================
-  # TESTS MICROservicios
+  # TESTS MICROSERVICIOS
   # ==========================================
   test-services:
     needs: changes
@@ -126,6 +126,10 @@ jobs:
           npm run lint || true
           npm test -- --passWithNoTests || true
           npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   # ==========================================
   # BUILD & PUSH DOCKER
@@ -133,7 +137,6 @@ jobs:
   build-and-push:
     needs: [test-services, test-frontend]
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         service:
@@ -166,7 +169,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push
+      - name: Build & Push Docker Image
         if: needs.changes.outputs[matrix.service] == 'true'
         uses: docker/build-push-action@v5
         with:
@@ -175,6 +178,11 @@ jobs:
                 matrix.service == 'nginx' && './nginx' ||
                 format('./services/{0}-service', matrix.service) }}
           push: true
+          no-cache: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+            NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
           tags: |
             ghcr.io/jettro12/${{
               matrix.service == 'frontend' && 'frontend' ||

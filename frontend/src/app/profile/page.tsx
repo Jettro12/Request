@@ -7,9 +7,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { ApiClient } from '../../lib/api/client';
 import Link from 'next/link';
 
-// Servicio de archivos (debes crearlo)
-import { FilesClient } from '@/lib/api/filesClient';
-
 export default function ProfilePage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -26,6 +23,7 @@ export default function ProfilePage() {
         session.user.id,
       )) as any;
 
+      // Adaptación a diferentes formatos de respuesta del microservicio
       const data =
         result?.data?.profile || result?.data || result?.profile || result;
 
@@ -38,14 +36,13 @@ export default function ProfilePage() {
     }
   }, [session?.user?.id]);
 
-  // Cargar archivos del usuario
   const fetchUserFiles = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
       setLoadingFiles(true);
-      // Aquí llamarías a tu servicio de archivos
-      // const files = await FilesClient.getUserFiles(session.user.id);
-      // setUserFiles(files);
+      // Aquí puedes implementar la carga de archivos si tu endpoint está listo
+      // const res = await ApiClient.files.getUserFiles(session.user.id);
+      // setUserFiles(res.data || []);
     } catch (error) {
       console.error('Error cargando archivos:', error);
     } finally {
@@ -59,194 +56,160 @@ export default function ProfilePage() {
   }, [fetchProfile, fetchUserFiles]);
 
   if (isLoading)
-    return <div className="p-20 text-center font-bold">Cargando perfil...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-bold text-blue-600 animate-pulse">
+        Cargando perfil...
+      </div>
+    );
 
   const safeProfile = profile || {};
 
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gray-50">
-        {/* Header del perfil con cover y avatar */}
-        <div className="relative h-64 bg-gradient-to-r from-blue-600 to-purple-600">
-          {/* Cover image - puedes agregarla si guardas en perfil */}
-          {safeProfile.coverImage && (
-            <img
-              src={safeProfile.coverImage}
-              alt="Cover"
-              className="w-full h-full object-cover"
-            />
-          )}
+      <main className="min-h-screen bg-gray-50 pb-20">
+        {/* Banner simplificado (Solo color sólido o degradado sin imagen) */}
+        <div className="h-48 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 shadow-inner" />
 
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
-            <div className="relative">
-              <div className="w-40 h-40 bg-blue-600 rounded-full flex items-center justify-center text-white text-6xl font-black border-8 border-white shadow-2xl">
+        <div className="max-w-6xl mx-auto px-4">
+          {/* Header del perfil (Avatar flotando sobre el banner) */}
+          <div className="relative -mt-24 flex flex-col items-center">
+            <div className="relative group">
+              <div className="w-44 h-44 bg-white rounded-full flex items-center justify-center text-white text-6xl font-black border-[6px] border-white shadow-xl overflow-hidden">
                 {safeProfile.image ? (
                   <img
                     src={safeProfile.image}
                     alt={safeProfile.name}
-                    className="w-full h-full rounded-full object-cover"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                        // Si la imagen falla por CORS o 404, mostramos la inicial
+                        (e.target as any).style.display = 'none';
+                    }}
                   />
                 ) : (
-                  safeProfile.name?.charAt(0).toUpperCase() || 'U'
+                  <span className="text-blue-600">
+                    {safeProfile.name?.charAt(0).toUpperCase() || 'U'}
+                  </span>
                 )}
               </div>
 
               <Link
                 href="/profile/edit"
-                className="absolute bottom-2 right-2 bg-gray-900 text-white p-3 rounded-full hover:bg-gray-800 transition shadow-lg"
+                className="absolute bottom-2 right-2 bg-gray-900 text-white p-3 rounded-full hover:bg-blue-600 transition-all shadow-lg hover:scale-110 active:scale-95"
+                title="Editar perfil"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
               </Link>
             </div>
-          </div>
-        </div>
 
-        <div className="max-w-6xl mx-auto px-4 pt-24 pb-10">
-          {/* Información del usuario */}
-          <div className="text-center mb-12">
-            <h1 className="text-5xl font-black text-gray-900 tracking-tighter uppercase mb-4">
-              {safeProfile.name || session?.user?.name || 'Usuario'}
-            </h1>
-
-            <div className="flex flex-wrap justify-center gap-4 mb-6">
-              <span className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-black uppercase tracking-wider">
-                {safeProfile.career || 'Carrera no definida'}
-              </span>
-              <span className="bg-gray-800 text-white px-6 py-2 rounded-full text-sm font-black uppercase tracking-wider">
-                {safeProfile.semester
-                  ? `${safeProfile.semester}° Semestre`
-                  : 'Semestre N/A'}
-              </span>
+            {/* Información principal */}
+            <div className="text-center mt-6">
+              <h1 className="text-4xl font-black text-gray-900 tracking-tight uppercase">
+                {safeProfile.name || session?.user?.name || 'Usuario'}
+              </h1>
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
+                <span className="bg-blue-100 text-blue-700 px-5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-blue-200">
+                  {safeProfile.career || 'Carrera no definida'}
+                </span>
+                <span className="bg-gray-100 text-gray-700 px-5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-gray-200">
+                  {safeProfile.semester ? `${safeProfile.semester}° Semestre` : 'Semestre N/A'}
+                </span>
+              </div>
+              <p className="text-gray-500 mt-6 max-w-2xl mx-auto text-lg leading-relaxed font-medium">
+                {safeProfile.bio || '¡Hola! Soy estudiante y estoy usando Request para colaborar.'}
+              </p>
             </div>
-
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-              {safeProfile.bio || 'Sin biografía disponible.'}
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Columna izquierda - Habilidades e Intereses */}
-            <div className="space-y-8">
-              <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">
+          {/* Grid de Contenido */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-16">
+            
+            {/* Sidebar: Skills e Intereses */}
+            <div className="space-y-6">
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+                <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-6">
                   Habilidades Técnicas
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {safeProfile.skills?.length > 0 ? (
                     safeProfile.skills.map((skill: string) => (
-                      <span
-                        key={skill}
-                        className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-sm font-bold"
-                      >
+                      <span key={skill} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-xs font-bold border border-blue-100">
                         {skill}
                       </span>
                     ))
                   ) : (
-                    <p className="text-gray-400 text-sm italic">
-                      No se han añadido habilidades.
-                    </p>
+                    <p className="text-gray-400 text-sm italic">No se han añadido habilidades.</p>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">
-                  Intereses Personales
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+                <h3 className="text-[10px] font-black text-purple-600 uppercase tracking-[0.2em] mb-6">
+                  Intereses
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {safeProfile.interests?.length > 0 ? (
                     safeProfile.interests.map((interest: string) => (
-                      <span
-                        key={interest}
-                        className="bg-purple-50 text-purple-600 px-4 py-2 rounded-xl text-sm font-bold"
-                      >
+                      <span key={interest} className="bg-purple-50 text-purple-600 px-4 py-2 rounded-xl text-xs font-bold border border-purple-100">
                         {interest}
                       </span>
                     ))
                   ) : (
-                    <p className="text-gray-400 text-sm italic">
-                      No se han añadido intereses.
-                    </p>
+                    <p className="text-gray-400 text-sm italic">No se han añadido intereses.</p>
                   )}
+                </div>
+              </div>
+
+              {/* Stats Rápidas */}
+              <div className="bg-gray-900 rounded-3xl p-8 text-white">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">
+                  Actividad
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold opacity-60">Archivos</span>
+                    <span className="text-xl font-black">{userFiles.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold opacity-60">Rating</span>
+                    <span className="text-xl font-black">⭐ {safeProfile.rating?.toFixed(1) || '0.0'}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Columna central - Galería multimedia */}
+            {/* Principal: Galería Multimedia */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm">
-                <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-black text-gray-900">
-                    🖼️ Mi Galería Multimedia
+              <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm min-h-[400px]">
+                <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-2xl font-black text-gray-900 tracking-tight">
+                    Multimedia <span className="text-blue-600">.</span>
                   </h3>
                   <Link
                     href="/profile/edit"
-                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                    Subir Contenido
+                    + Subir
                   </Link>
                 </div>
 
-                {/* Galería */}
                 {loadingFiles ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <div className="flex justify-center py-20">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                   </div>
                 ) : userFiles.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                     {userFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="relative group rounded-2xl overflow-hidden bg-gray-100 aspect-square"
-                      >
+                      <div key={file.id} className="relative group rounded-3xl overflow-hidden bg-gray-50 aspect-square border shadow-sm">
                         {file.type === 'video' ? (
-                          <video
-                            src={file.url}
-                            className="w-full h-full object-cover"
-                            controls
-                          />
+                          <video src={file.url} className="w-full h-full object-cover" />
                         ) : (
-                          <img
-                            src={file.url}
-                            alt={file.filename}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
+                          <img src={file.url} alt="User Upload" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                         )}
-
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <button className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold">
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button className="bg-white text-gray-900 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest">
                             Ver
                           </button>
                         </div>
@@ -254,78 +217,21 @@ export default function ProfilePage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-2xl">
-                    <svg
-                      className="w-16 h-16 text-gray-400 mx-auto mb-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <p className="text-gray-500 mb-4">
-                      Aún no has subido contenido multimedia
+                  <div className="text-center py-20">
+                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-dashed border-gray-300 text-3xl">
+                      📸
+                    </div>
+                    <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">
+                      Tu galería está vacía
                     </p>
-                    <Link
-                      href="/profile/edit"
-                      className="inline-block bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-800 transition"
-                    >
-                      Subir mis primeros archivos
+                    <Link href="/profile/edit" className="text-blue-600 text-xs font-black uppercase mt-4 block hover:underline">
+                      Añadir contenido ahora →
                     </Link>
                   </div>
                 )}
-
-                {/* Información de cuenta */}
-                <div className="mt-12 pt-8 border-t border-gray-100">
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
-                    Detalles de la Cuenta
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                      <span className="text-sm font-bold text-gray-500">
-                        Email
-                      </span>
-                      <span className="text-sm font-black text-gray-900 truncate">
-                        {safeProfile.email || session?.user?.email || 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                      <span className="text-sm font-bold text-gray-500">
-                        Miembro desde
-                      </span>
-                      <span className="text-sm font-black text-gray-900">
-                        {safeProfile.createdAt
-                          ? new Date(safeProfile.createdAt).toLocaleDateString()
-                          : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                      <span className="text-sm font-bold text-gray-500">
-                        Archivos subidos
-                      </span>
-                      <span className="text-sm font-black text-gray-900">
-                        {userFiles.length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                      <span className="text-sm font-bold text-gray-500">
-                        Última actualización
-                      </span>
-                      <span className="text-sm font-black text-gray-900">
-                        {safeProfile.updatedAt
-                          ? new Date(safeProfile.updatedAt).toLocaleDateString()
-                          : 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
+
           </div>
         </div>
       </main>

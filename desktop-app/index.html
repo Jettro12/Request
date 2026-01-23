@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Request Admin Admin 🖥️</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #0f172a;
+        color: white;
+        padding: 40px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+      }
+      .status-card {
+        background: #1e293b;
+        padding: 20px;
+        borderradius: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-left: 5px solid gray;
+      }
+      .online {
+        border-color: #22c55e;
+      }
+      .offline {
+        border-color: #ef4444;
+      }
+      .dot {
+        height: 15px;
+        width: 15px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>System Status Monitor</h1>
+    <div id="status-grid" class="grid"></div>
+
+    <script>
+      const ALB_URL = 'http://app-alb-896588448.us-east-1.elb.amazonaws.com';
+      const services = [
+        { name: 'Auth', path: '/api/auth-custom/health' },
+        { name: 'Users', path: '/api/users/health' },
+        { name: 'Posts', path: '/api/posts/health' },
+        { name: 'Files', path: '/api/files/health' },
+        { name: 'Ratings', path: '/api/ratings/health' },
+      ];
+
+      async function checkHealth() {
+        const grid = document.getElementById('status-grid');
+        grid.innerHTML = '';
+
+        for (const service of services) {
+          let isOnline = false;
+          try {
+            const res = await fetch(ALB_URL + service.path);
+            if (res.ok) isOnline = true;
+          } catch (e) {
+            isOnline = false;
+          }
+
+          const card = document.createElement('div');
+          card.className = `status-card ${isOnline ? 'online' : 'offline'}`;
+          card.innerHTML = `
+                    <span>${service.name} Service</span>
+                    <span style="background: ${isOnline ? '#22c55e' : '#ef4444'}" class="dot"></span>
+                `;
+          grid.appendChild(card);
+        }
+      }
+
+      setInterval(checkHealth, 5000);
+      checkHealth();
+    </script>
+  </body>
+</html>
