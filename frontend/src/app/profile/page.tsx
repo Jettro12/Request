@@ -75,7 +75,7 @@ export default function ProfilePage() {
           {/* Header del perfil (Avatar flotando sobre el banner) */}
           <div className="relative -mt-24 flex flex-col items-center">
             <div className="relative group">
-              <div className="w-44 h-44 bg-blue-600 rounded-full flex items-center justify-center text-white text-6xl font-black border-[6px] border-white shadow-xl overflow-hidden bg-white">
+              <div className="w-44 h-44 bg-white rounded-full flex items-center justify-center text-white text-6xl font-black border-[6px] border-white shadow-xl overflow-hidden">
                 {safeProfile.image ? (
                   <img
                     src={safeProfile.image}
