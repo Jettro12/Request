@@ -1,81 +1,221 @@
 <!doctype html>
 <html>
   <head>
-    <title>Request Admin Admin 🖥️</title>
+    <title>System Monitor Dashboard 🛡️</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' http://app-alb-896588448.us-east-1.elb.amazonaws.com"
+    />
+
     <style>
       body {
-        font-family: sans-serif;
-        background: #0f172a;
+        font-family:
+          'Segoe UI',
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: #0f172a; /* Slate 900 */
         color: white;
         padding: 40px;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* Centramos todo para mejor presentación */
       }
+
+      header {
+        text-align: center;
+        margin-bottom: 40px;
+        border-bottom: 2px solid #334155;
+        padding-bottom: 20px;
+        width: 100%;
+        max-width: 1000px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: -1px;
+        background: linear-gradient(to right, #38bdf8, #818cf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .subtitle {
+        color: #94a3b8;
+        margin-top: 10px;
+        font-size: 1.1rem;
+      }
+
+      /* Contenedor Principal */
+      .dashboard-container {
+        width: 100%;
+        max-width: 1000px;
+      }
+
+      /* Grid de Servicios */
       .grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(
+          auto-fill,
+          minmax(280px, 1fr)
+        ); /* Tarjetas más anchas */
         gap: 20px;
       }
+
       .status-card {
-        background: #1e293b;
-        padding: 20px;
-        borderradius: 15px;
+        background: #1e293b; /* Slate 800 */
+        padding: 20px 25px;
+        border-radius: 15px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-left: 5px solid gray;
+        border-left: 6px solid #64748b;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        transition:
+          transform 0.2s,
+          background 0.2s;
       }
+
+      .status-card:hover {
+        transform: translateY(-3px);
+        background: #273548;
+      }
+
+      .service-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #e2e8f0;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        text-transform: uppercase;
+      }
+
+      /* Estados */
       .online {
-        border-color: #22c55e;
+        border-left-color: #22c55e;
       }
+      .online .dot {
+        background: #22c55e;
+        box-shadow: 0 0 10px #22c55e;
+      }
+      .online .text {
+        color: #22c55e;
+      }
+
       .offline {
-        border-color: #ef4444;
+        border-left-color: #ef4444;
       }
+      .offline .dot {
+        background: #ef4444;
+        box-shadow: 0 0 10px #ef4444;
+      }
+      .offline .text {
+        color: #ef4444;
+      }
+
       .dot {
-        height: 15px;
-        width: 15px;
+        height: 12px;
+        width: 12px;
         border-radius: 50%;
         display: inline-block;
+      }
+
+      .loading-text {
+        text-align: center;
+        color: #64748b;
+        font-style: italic;
+        margin-top: 20px;
       }
     </style>
   </head>
   <body>
-    <h1>System Status Monitor</h1>
-    <div id="status-grid" class="grid"></div>
+    <header>
+      <h1>System Health Monitor</h1>
+      <div class="subtitle">Infraestructura de Microservicios (AWS)</div>
+    </header>
+
+    <div class="dashboard-container">
+      <div id="status-grid" class="grid"></div>
+      <div id="loading-msg" class="loading-text">
+        Conectando con el Load Balancer...
+      </div>
+    </div>
 
     <script>
-      const ALB_URL = 'http://app-alb-896588448.us-east-1.elb.amazonaws.com';
+      const ALB_HOST = 'http://app-alb-896588448.us-east-1.elb.amazonaws.com';
+
+      // Lista completa de servicios para mostrar un panel robusto
       const services = [
         { name: 'Auth', path: '/api/auth-custom/health' },
         { name: 'Users', path: '/api/users/health' },
+        { name: 'Profile', path: '/api/profile/health' }, // Faltaba este
+
+        // --- Funcionalidades Core ---
+        { name: 'Requests', path: '/api/requests/health' }, // Vital para tu tesis
         { name: 'Posts', path: '/api/posts/health' },
         { name: 'Files', path: '/api/files/health' },
         { name: 'Ratings', path: '/api/ratings/health' },
+
+        // --- Comunicación ---
+        { name: 'Notifications', path: '/api/notifications/health' }, // Faltaba este
+        { name: 'Chat', path: '/api/chat/health' }, // Faltaba este
+        { name: 'Messages', path: '/api/messages/health' }, // Faltaba este
+        { name: 'Conversations', path: '/api/conversations/health' },
       ];
 
       async function checkHealth() {
         const grid = document.getElementById('status-grid');
+        const loadingMsg = document.getElementById('loading-msg');
+
+        // Ocultar mensaje de carga tras el primer intento
+        if (loadingMsg) loadingMsg.style.display = 'none';
+
+        // Limpiamos el grid para redibujar
         grid.innerHTML = '';
 
         for (const service of services) {
           let isOnline = false;
           try {
-            const res = await fetch(ALB_URL + service.path);
+            // Timeout de 2 segundos para no bloquear la UI
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 2000);
+
+            const res = await fetch(ALB_HOST + service.path, {
+              signal: controller.signal,
+            });
             if (res.ok) isOnline = true;
           } catch (e) {
             isOnline = false;
           }
 
+          // Crear tarjeta
           const card = document.createElement('div');
           card.className = `status-card ${isOnline ? 'online' : 'offline'}`;
+
           card.innerHTML = `
-                    <span>${service.name} Service</span>
-                    <span style="background: ${isOnline ? '#22c55e' : '#ef4444'}" class="dot"></span>
-                `;
+             <span class="service-name">${service.name}</span>
+             <div class="status-indicator">
+                <span class="text">${isOnline ? 'Active' : 'Offline'}</span>
+                <span class="dot"></span>
+             </div>
+          `;
           grid.appendChild(card);
         }
       }
 
-      setInterval(checkHealth, 5000);
+      // Ejecutar inmediatamente
       checkHealth();
+
+      // Actualizar cada 5 segundos
+      setInterval(checkHealth, 5000);
     </script>
   </body>
 </html>

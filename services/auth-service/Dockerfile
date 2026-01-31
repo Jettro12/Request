@@ -10,6 +10,8 @@ COPY tsconfig.json ./
 
 # Instalar dependencias
 RUN npm install --legacy-peer-deps
+RUN npm install jsonwebtoken
+RUN npm install -D @types/jsonwebtoken
 
 # Prisma: Generar cliente ANTES del build
 COPY prisma ./prisma

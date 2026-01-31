@@ -211,12 +211,11 @@ resource "aws_launch_template" "app_lt" {
     device_name = "/dev/xvda"
     
     ebs {
-      volume_size           = 16  # <-- CAMBIADO A 16 GB
+      volume_size           = 16
       volume_type           = "gp3"
-      delete_on_termination = true  # <-- SE ELIMINA AL TERMINAR (instancia fresca)
+      delete_on_termination = true
       encrypted             = true
       
-      # Performance opcional para gp3 (puedes ajustar)
       iops       = 3000
       throughput = 125
     }
@@ -227,7 +226,7 @@ resource "aws_launch_template" "app_lt" {
     associate_public_ip_address = true
   }
   
-  user_data = base64encode(<<-EOF
+  user_data = base64gzip(<<-EOF
     #!/bin/bash
     yum update -y
     amazon-linux-extras install docker -y
@@ -264,6 +263,11 @@ resource "aws_launch_template" "app_lt" {
 
     sed -i "s/INSERT_ALB_DNS_HERE/${aws_lb.app_alb.dns_name}/g" nginx/nginx.conf
 
+    # --- CORRECCIÓN AQUÍ: Crea la red antes de arrancar ---
+    docker network create app_microservices-net || true
+    # ------------------------------------------------------
+
+     
     docker login ghcr.io -u Jettro12 -p ${var.ghcr_token}
     /usr/local/bin/docker-compose -f docker-compose.prod.yml down -v
     /usr/local/bin/docker-compose -f docker-compose.prod.yml pull

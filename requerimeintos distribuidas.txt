@@ -1,0 +1,83 @@
+REQUIERIMIENTOS: 
+
+DISTRUBUCIONES: QA Y PRODUCCION
+
+IMPLEMENTACIONES OBLIGATORIAS 
+
+1)monorepo, especifico para el lenguaje turborepo, nx, gradel
+2)a nivel de back en 1 solo lenguaje y un framework
+3)multiplataforma. web, movile, escritorio, que en cada plataforma se manejen quizá diferentes modulos, por ejemplo en movile solo ver la información del proceso nada más - Roles y permisos  
+4) 10 microservicios
+5) seguridad mandatorio crear jumpbox, ec2 bastion, cors, firewall cloudfare(esto será asistido con el ingeniero), rate limit(a nivel de microservicios), jwt 
+6) en la nube usar AWS y PAAS como -- contenfull, supabase, heroku, etc 
+7) devops microservicios CI CD Githubactions
+8) TESTING EN GENERAl unitarias, de carga, pruebas funcioanles, a nivel de back, dentro de CI Y CD tanto para QA Y produccion 
+9)Dockerhub o GitHub registry  (todo dockerizado) ECR/AWS
+10) principios de diseño, al menos 4 de ellos, solid, dry, Kiss, yagni, ecapsulation, cohesion, LOW Cupling, GRASP (en cada microservicio) 
+11)database 3 db, 1 tiene que ser caché
+12)load balancer qu solo irá en producción  (ELB - ASG)Elastic load balancer , autoscallingroup 
+13)apigateway mandatorio 
+14)métodos de comunicación 3 mandatorios, Kafka, rabbitmq, mqtt y además de estos elegir 3 más, soap, restapi, webhook, GRPC,  websocket, grapql, rpc 
+15)arquitectura, al menos microservicios, eventdriven, sqrs, mvc, capas, MVVC, Hexagonal, (obligatorios microservicios, evento drive and CQRS)
+16)monitoreo site 24/7 , grafana, prometheus y grafana vienen acompañados,  uno de todos 
+17)alta disponibilidad (), en qa y produccion 
+18)conectarse a la nube con un servicio onpremise para hacer backups, infraestructura híbrida (alojada en una maquina virtual, y generar backups de db)  
+19)usar n8n para automatizar los procesos de negocios (enviar correo, sms, el proceso de negocio, en la capa free)
+20)documentación swagger, conventional commits, PR, readmes, etc 
+
+ 
+
+opcionales que agregan putos a la nota final 
+
+kubernets
+manejar cache tanto en frontend o backedn 
+multi región 
+multi VPC 
+crear automaticamente un backup en el omnpremise 
+crear automáticamente EC2
+Crear micro frontend, al menos 3 
+generar una blockchain en el sistema(en este caso para registrar la inmutabilidad de los contratos creados)
+usar AI para analizar o predecir algun resultado en la base de datos 
+agregar una pasarela de pagos (no es opcional si no aplica)
+conectar con el active directory (en un server de windows server con unos 4 usuarios, funciona )
+
+
+-----------------------------------------------------------------------
+
+ARQUITECTURAS 
+
+Justificar todo lo que implementamos 
+
+
+
+DISPOSICIONES ADICIONALES:
+-Agregar sonarquiub en el proyecto para la asignatura de control de calidad de ti 
+-agregar al inge para el pr de la rama main de produccion 
+-para el manejo del monorepo ya que se puede reutilizar clases o funciones; NX, compatible con js, gradle, para java -turborepo( configurar dentro un domain federation para los micro frontends)
+-usar terraform para la automatización del despliegue 
+-cuanto va a costar el sistema en un año 
+
+
+REQUERIMIENTOS PARA EL PRIMER AVANCE - 7 DÍAS ESTIMADOS: 
+
+diagrama de microservicios (listo)
+diagramas de ato nivel (listo)
+Diagrama de bajo nivel (listo)
+diagramas de casos de uso  (listo)
+diagramas de procesos de negocios (listo)
+diagrama de arquitectura (como se comunican los micro servicios, Kafka rabbitqm mqtt ) (listo)
+Diagrama de Secuencia (listo)
+Diagrama de Despliegue (listo)
+Diagrama de Clases o UML pendiente
+Modelo ER (Entidad-Relación) pendiente
+
+-----------------------------------------------------------------------
+
+Snapshot es un backup de una parte del sistema operativo, compartir a partir de varias zonas de disponibilidad dentro de una sola región 
+
+AMI es una imagen replica, para lanzar servidores, 
+
+----
+
+IMPLEMENTAR KAFKA SUMADO A CQRS 
+
